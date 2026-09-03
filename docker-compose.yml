@@ -1,0 +1,50 @@
+name: xai-iml-26
+
+services:
+  frontend:
+    image: frontend:latest
+    build:
+      context: ./frontend/
+      dockerfile: ./Dockerfile
+      target: base
+    volumes:
+      - ./frontend/nextjs:/usr/src/app
+    environment:
+      CARTO_API_KEY: ${CARTO_API_KEY:-}
+    #   - NEXT_PUBLIC_DISABLE_GRAPH_UPLOAD=true # Disable graph upload in frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    command: sh -c "yarn install && yarn dev --webpack"
+
+
+  backend:
+    image: backend:latest
+    build:
+      context: ./backend/
+      dockerfile: ./Dockerfile
+      target: base
+    volumes:
+      - ./backend/src:/usr/src/app
+      - ./backend/data:/usr/data
+      - ./backend/neural-lam:/models/neural-lam
+    environment:
+      DATA_ROOT: /usr/data
+      MODEL_ROOT: /models
+    ports:
+      - "8080:8080"
+
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: graph_db
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres-data:

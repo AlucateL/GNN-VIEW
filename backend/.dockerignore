@@ -1,0 +1,14 @@
+# Runtime caches (app uses /tmp/ig_cache)
+data/ig_cache
+
+# Checkpoints not loaded in production (scripted .pt only)
+data/paper_checkpoints/*.ckpt
+data/paper_checkpoints/*.ipynb
+data/paper_checkpoints/export_torchscript.py
+
+# Python / VCS noise
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+.git
+.gitignore

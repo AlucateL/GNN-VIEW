@@ -1,0 +1,275 @@
+[
+  {
+    "g": 25000,
+    "m": 8000,
+    "e": 300000,
+    "sweeps": [
+      "g"
+    ],
+    "name": "bench_scaling_g25000_m8000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.546294083003886,
+    "graph_id": 49
+  },
+  {
+    "g": 50000,
+    "m": 8000,
+    "e": 300000,
+    "sweeps": [
+      "g"
+    ],
+    "name": "bench_scaling_g50000_m8000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.01240941695868969,
+    "graph_id": 50
+  },
+  {
+    "g": 100000,
+    "m": 2000,
+    "e": 300000,
+    "sweeps": [
+      "m"
+    ],
+    "name": "bench_scaling_g100000_m2000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.013853417010977864,
+    "graph_id": 51
+  },
+  {
+    "g": 100000,
+    "m": 4000,
+    "e": 300000,
+    "sweeps": [
+      "m"
+    ],
+    "name": "bench_scaling_g100000_m4000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.013699500006623566,
+    "graph_id": 52
+  },
+  {
+    "g": 100000,
+    "m": 8000,
+    "e": 50000,
+    "sweeps": [
+      "e"
+    ],
+    "name": "bench_scaling_g100000_m8000_e50000",
+    "subgraph_edges_built": {
+      "g2m": 15000,
+      "m2m": 7500,
+      "m2g": 27500
+    },
+    "build_s": 0.004810999962501228,
+    "graph_id": 53
+  },
+  {
+    "g": 100000,
+    "m": 8000,
+    "e": 100000,
+    "sweeps": [
+      "e"
+    ],
+    "name": "bench_scaling_g100000_m8000_e100000",
+    "subgraph_edges_built": {
+      "g2m": 30000,
+      "m2m": 15000,
+      "m2g": 55000
+    },
+    "build_s": 0.010588917066343129,
+    "graph_id": 54
+  },
+  {
+    "g": 100000,
+    "m": 8000,
+    "e": 200000,
+    "sweeps": [
+      "e"
+    ],
+    "name": "bench_scaling_g100000_m8000_e200000",
+    "subgraph_edges_built": {
+      "g2m": 60000,
+      "m2m": 30000,
+      "m2g": 110000
+    },
+    "build_s": 0.015084792044945061,
+    "graph_id": 55
+  },
+  {
+    "g": 100000,
+    "m": 8000,
+    "e": 300000,
+    "sweeps": [
+      "g",
+      "m"
+    ],
+    "name": "bench_scaling_g100000_m8000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.0168443750590086,
+    "graph_id": 56
+  },
+  {
+    "g": 100000,
+    "m": 8000,
+    "e": 400000,
+    "sweeps": [
+      "e"
+    ],
+    "name": "bench_scaling_g100000_m8000_e400000",
+    "subgraph_edges_built": {
+      "g2m": 120000,
+      "m2m": 60000,
+      "m2g": 220000
+    },
+    "build_s": 0.02039608301129192,
+    "graph_id": 58
+  },
+  {
+    "g": 100000,
+    "m": 8000,
+    "e": 800000,
+    "sweeps": [
+      "e"
+    ],
+    "name": "bench_scaling_g100000_m8000_e800000",
+    "subgraph_edges_built": {
+      "g2m": 240000,
+      "m2m": 120000,
+      "m2g": 440000
+    },
+    "build_s": 0.030027792090550065,
+    "graph_id": 59
+  },
+  {
+    "g": 100000,
+    "m": 8000,
+    "e": 1600000,
+    "sweeps": [
+      "e"
+    ],
+    "name": "bench_scaling_g100000_m8000_e1600000",
+    "subgraph_edges_built": {
+      "g2m": 480000,
+      "m2m": 240000,
+      "m2g": 880000
+    },
+    "build_s": 0.06284254195634276,
+    "graph_id": 60
+  },
+  {
+    "g": 100000,
+    "m": 16000,
+    "e": 300000,
+    "sweeps": [
+      "m"
+    ],
+    "name": "bench_scaling_g100000_m16000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.017680666991509497,
+    "graph_id": 61
+  },
+  {
+    "g": 100000,
+    "m": 32000,
+    "e": 300000,
+    "sweeps": [
+      "m"
+    ],
+    "name": "bench_scaling_g100000_m32000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.014380833017639816,
+    "graph_id": 62
+  },
+  {
+    "g": 100000,
+    "m": 64000,
+    "e": 300000,
+    "sweeps": [
+      "m"
+    ],
+    "name": "bench_scaling_g100000_m64000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.014509833068586886,
+    "graph_id": 63
+  },
+  {
+    "g": 200000,
+    "m": 8000,
+    "e": 300000,
+    "sweeps": [
+      "g"
+    ],
+    "name": "bench_scaling_g200000_m8000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.017625082982704043,
+    "graph_id": 64
+  },
+  {
+    "g": 400000,
+    "m": 8000,
+    "e": 300000,
+    "sweeps": [
+      "g"
+    ],
+    "name": "bench_scaling_g400000_m8000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.018636166001670063,
+    "graph_id": 65
+  },
+  {
+    "g": 800000,
+    "m": 8000,
+    "e": 300000,
+    "sweeps": [
+      "g"
+    ],
+    "name": "bench_scaling_g800000_m8000_e300000",
+    "subgraph_edges_built": {
+      "g2m": 90000,
+      "m2m": 45000,
+      "m2g": 165000
+    },
+    "build_s": 0.02467720804270357,
+    "graph_id": 66
+  }
+]

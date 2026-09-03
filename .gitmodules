@@ -1,0 +1,4 @@
+[submodule "backend/neural-lam"]
+	path = backend/neural-lam
+	url = https://github.com/mllam/neural-lam.git
+	branch = prob_model_global

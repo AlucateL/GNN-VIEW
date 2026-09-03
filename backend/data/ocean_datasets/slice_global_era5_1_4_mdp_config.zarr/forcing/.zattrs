@@ -1,0 +1,11 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "forcing_feature",
+        "grid_index"
+    ],
+    "coordinates": "depth forcing_feature_long_name forcing_feature_source_dataset forcing_feature_units latitude longitude",
+    "long_name": "2 metre temperature",
+    "short_name": "t2m",
+    "units": "K",
+    "variables_mapping_dim": "forcing_feature"
+}

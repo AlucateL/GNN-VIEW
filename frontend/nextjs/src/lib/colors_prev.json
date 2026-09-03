@@ -1,0 +1,65 @@
+{
+  "mapNodes": {
+    "grid": "#2BAE8E",
+    "mesh": "#9B6DD6"
+  },
+  "mapEdges": {
+    "encoder": "#FF6200",
+    "decoder": "#DC267F",
+    "mesh":    "#9B6DD6"
+  },
+  "violation": {
+    "above":   "#ae017e",
+    "below":   "#0072b4",
+    "neutral": "#6b7280"
+  },
+  "interactive": {
+    "accent":        "#00acc1",
+    "minimapAccent": "#00acc1"
+  },
+  "explain": {
+    "t12h":              "#C17D3C",
+    "t6h":               "#5B9B72",
+    "sourceA":           "#2C7BB6",
+    "sourceB":           "#A33B8F",
+    "attrCold":          "#0072b4",
+    "attrColdMid":       "#6aafd9",
+    "attrHotMid":        "#c96bab",
+    "attrHot":           "#ae017e",
+    "timelineAvailable": "#ae017e"
+  },
+  "errorHeatmap": {
+    "stop0":   "#ffffff",
+    "stop1":   "#fdf4dc",
+    "stop2":   "#e6b262",
+    "stop3":   "#c8963c",
+    "stop4":   "#c86e5c",
+    "stop5":   "#c85878",
+    "noData":  "#c8c8c8"
+  },
+  "ui": {
+    "background":      "#f0f4f8",
+    "panelBackground": "rgba(255,255,255,0.94)",
+    "cardBackground":  "rgba(248,250,252,0.97)",
+    "border":          "rgba(0,0,0,0.09)",
+    "borderSubtle":    "rgba(0,0,0,0.05)",
+    "text":            "#1e293b",
+    "textMuted":       "#64748b",
+    "textDim":         "#94a3b8"
+  },
+  "dark": {
+    "background":        "#0f172a",
+    "panelBackground":   "rgba(20,28,48,0.97)",
+    "cardBackground":    "rgba(30,41,59,0.95)",
+    "border":            "rgba(255,255,255,0.10)",
+    "borderSubtle":      "rgba(255,255,255,0.06)",
+    "text":              "#f1f5f9",
+    "textMuted":         "#94a3b8",
+    "textDim":           "#64748b",
+    "t12h":              "#D4944A",
+    "t6h":               "#6DB88A",
+    "sourceA":           "#4D9FD4",
+    "sourceB":           "#C563AC",
+    "timelineAvailable": "#f87171"
+  }
+}

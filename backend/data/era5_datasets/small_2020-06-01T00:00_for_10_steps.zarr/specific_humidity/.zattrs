@@ -1,0 +1,12 @@
+{
+  "long_name": "Specific humidity",
+  "short_name": "q",
+  "standard_name": "specific_humidity",
+  "units": "kg kg**-1",
+  "_ARRAY_DIMENSIONS": [
+    "time",
+    "level",
+    "longitude",
+    "latitude"
+  ]
+}

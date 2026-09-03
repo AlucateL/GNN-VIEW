@@ -1,0 +1,8 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "mask_feature",
+        "grid_index"
+    ],
+    "coordinates": "latitude longitude mask_feature_long_name mask_feature_source_dataset mask_feature_units",
+    "variables_mapping_dim": "mask_feature"
+}

@@ -1,0 +1,17 @@
+pdm run python -m neural_lam.train_model \
+    --config_path /monolith/global_data/ml_datasets/baltic_sea/data/baltic_graph_rework.yaml\
+    --num_workers 4\
+    --precision bf16-mixed\
+    --model graph_fm\
+    --graph cluster\
+    --hidden_dim 128\
+    --processor_layers 6\
+    --batch_size 1\
+    --lr 0.001\
+    --ar_steps_train 1\
+    --epochs 300\
+    --val_interval 5\
+    --ar_steps_eval 4\
+    --val_steps_to_log 1 4\
+    --num_sanity_val_steps 0\
+    --devices 3

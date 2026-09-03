@@ -1,0 +1,10 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "grid_index"
+    ],
+    "axis": "Y",
+    "long_name": "Latitude",
+    "standard_name": "latitude",
+    "unit_long": "Degrees North",
+    "units": "degrees_north"
+}

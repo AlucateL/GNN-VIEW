@@ -1,0 +1,17 @@
+pdm run python -m neural_lam.train_model \
+    --config_path /monolith/global_data/ml_datasets/baltic_sea/data/baltic_nl_config_mlotst.yaml \
+    --model graph_efm \
+    --graph hierarchical \
+    --precision bf16-mixed \
+    --num_workers 2 \
+    --hidden_dim 64 \
+    --processor_layers 2 \
+    --num_past_forcing_steps 1 \
+    --num_future_forcing_steps 1 \
+    --ensemble_size 5 \
+    --batch_size 2 \
+    --ar_steps_eval 15 \
+    --eval test \
+    --n_example_pred 1 \
+    --devices 3 \
+    --load saved_models/train-graph_efm-2x64-09_10_10-7350/last.ckpt

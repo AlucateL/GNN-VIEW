@@ -1,0 +1,11 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "forcing_feature",
+        "time",
+        "grid_index"
+    ],
+    "coordinates": "forcing_feature_long_name forcing_feature_source_dataset forcing_feature_units latitude longitude",
+    "long_name": "Sin component of cyclically encoded day of year",
+    "units": "1",
+    "variables_mapping_dim": "forcing_feature"
+}

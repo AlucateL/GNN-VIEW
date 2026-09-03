@@ -1,0 +1,51 @@
+{
+  "_comment": "Per-checkpoint inference overrides for paper_checkpoints/*.ckpt. These values OVERRIDE or SUPPLEMENT what is stored inside the checkpoint's hyper_parameters. Values NOT listed here are read directly from the checkpoint. Source: https://github.com/mllam/neural-lam/tree/prob_model_global/eval_scripts",
+  "_mismatches_explained": {
+    "model_name": "Checkpoints store old training names (graph_lam, hi_lam, step_cvae). The export script and inference.py map these to current class names (graphcast, graph_fm, graph_efm).",
+    "graph_name": "Checkpoints store training-cluster names (global_ms4, global_hi4s4l). The code falls back to local equivalents (global_multiscale, global_hierarchical) which are structurally identical.",
+    "ensemble_size": "Checkpoints store the training-time value (5). At eval/inference time the official scripts use 80. Listed here for graph_efm models.",
+    "vertical_propnets": "Not saved in checkpoint hparams at all. Must be inferred from the model. graph_fm (hi_lam) requires True; all others False."
+  },
+
+  "graphcast": {
+    "checkpoint":        "graphcast.ckpt",
+    "model_class":       "graphcast",
+    "graph":             "global_multiscale",
+    "vertical_propnets": false,
+    "hidden_dim":        256,
+    "processor_layers":  8
+  },
+
+  "graph_fm": {
+    "checkpoint":        "graph_fm.ckpt",
+    "model_class":       "graph_fm",
+    "graph":             "global_hierarchical",
+    "vertical_propnets": true,
+    "hidden_dim":        256,
+    "processor_layers":  4
+  },
+
+  "graph_efm": {
+    "checkpoint":              "graph_efm.ckpt",
+    "model_class":             "graph_efm",
+    "graph":                   "global_hierarchical",
+    "vertical_propnets":       false,
+    "hidden_dim":              256,
+    "processor_layers":        1,
+    "prior_processor_layers":  1,
+    "encoder_processor_layers": 1,
+    "ensemble_size":           80
+  },
+
+  "graph_efm_ms": {
+    "checkpoint":              "graph_efm_ms.ckpt",
+    "model_class":             "graph_efm",
+    "graph":                   "global_multiscale",
+    "vertical_propnets":       false,
+    "hidden_dim":              256,
+    "processor_layers":        4,
+    "prior_processor_layers":  2,
+    "encoder_processor_layers": 4,
+    "ensemble_size":           80
+  }
+}

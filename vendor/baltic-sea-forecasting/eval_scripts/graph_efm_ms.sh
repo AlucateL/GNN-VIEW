@@ -1,0 +1,15 @@
+python -m neural_lam.train_model \
+    --config_path tests/datastore_examples/mdp/danra_100m_winds/config.yaml \
+    --model graph_efm\
+    --n_example_pred 0\
+    --graph multiscale\
+    --n_workers 16\
+    --hidden_dim 128\
+    --processor_layers 4\
+    --prior_processor_layers 2\
+    --encoder_processor_layers 2\
+    --output_std \
+    --ensemble_size 100\
+    --batch_size 1\
+    --load paper_checkpoints/graph_efm_ms.ckpt\
+    --eval test\

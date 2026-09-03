@@ -1,0 +1,8 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "lead_time"
+    ],
+    "dtype": "timedelta64[us]",
+    "long_name": "Lead time relative to Tuesday initialization",
+    "units": "days"
+}

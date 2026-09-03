@@ -1,0 +1,1825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GNN Graph Explorer – Real Data</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<!-- deck.gl main bundle (exposes window.deck) -->
+<script src="https://unpkg.com/deck.gl@8.9/dist.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;font-family:'SF Pro Display','SF Pro Text',-apple-system,BlinkMacSystemFont,system-ui,'Helvetica Neue',Arial,sans-serif;background:#ffffff;color:#1e293b;overflow:hidden;}
+
+:root{
+  --bg:#ffffff;--bg-panel:#ffffff;--bg-card:#f8f9fa;
+  --border:#e2e8f0;--border-light:#f1f5f9;
+  --text:#1e293b;--text-muted:#64748b;--text-dim:#94a3b8;
+  --grid-color:#FE6100;--mesh-color:#648FFF;
+  --g2m-color:#785EF0;--m2g-color:#DC267F;
+  --amber:#FFB000;--red:#dc2626;--red-light:rgba(220,38,38,0.15);
+  /* ── Violation colours — change these two to restyle everything at once ── */
+  --viol-hi:#dc2626;   /* above upper threshold — red  */
+  --viol-lo:#2563eb;   /* below lower threshold — blue */
+  --viol-grey:#6b7280; /* non-violating elements in inspect mode — medium grey */
+  /* legacy aliases kept for other uses */
+  --blue-viol:#2563eb;--blue-viol-light:rgba(37,99,235,0.15);
+  --accent:#648FFF;
+}
+
+/* ── Header ── */
+#hdr{display:flex;align-items:center;gap:16px;padding:0 20px;height:48px;background:var(--bg-panel);border-bottom:1px solid var(--border);flex-shrink:0;user-select:none;}
+.logo{font-size:16px;font-weight:700;letter-spacing:-.02em;white-space:nowrap;}
+.logo .mesh-col{color:var(--mesh-color);}
+.h-meta{display:flex;gap:18px;font-size:12.5px;color:var(--text-muted);white-space:nowrap;}
+.h-meta strong{color:var(--text);font-weight:600;}
+.h-right{display:flex;align-items:center;gap:12px;margin-left:auto;}
+
+/* Loading badge */
+#loading-badge{font-size:11.5px;font-weight:600;color:var(--text-muted);padding:3px 10px;border:1px solid var(--border);border-radius:10px;display:none;}
+#loading-badge.active{display:block;color:var(--accent);border-color:var(--accent);}
+
+/* Inspect switch */
+.inspect-switch{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:500;color:var(--text-muted);cursor:pointer;}
+.inspect-switch .sw-track{position:relative;width:36px;height:20px;border-radius:10px;background:#cbd5e1;transition:background .2s;flex-shrink:0;}
+.inspect-switch .sw-track.on{background:var(--red);}
+.inspect-switch .sw-track::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.15);}
+.inspect-switch .sw-track.on::after{left:18px;}
+
+/* ── Layout ── */
+#main{display:flex;height:calc(100vh - 48px);overflow:hidden;}
+
+/* ── Left sidebar ── */
+#sb-left{width:200px;min-width:200px;background:var(--bg-panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.sb-sec{padding:14px 16px 12px;border-bottom:1px solid var(--border);}
+.sb-hd{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:10px;}
+
+.toggle-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;color:var(--text);cursor:pointer;transition:opacity .15s;}
+.toggle-row:hover{opacity:.85;}
+.toggle-row .indicator{width:10px;height:10px;border-radius:2px;flex-shrink:0;border:1.5px solid #1e293b;}
+.toggle-row .indicator.circle{border-radius:50%;}
+.toggle-row .pill{position:relative;width:32px;height:17px;border-radius:9px;flex-shrink:0;cursor:pointer;transition:background .2s;margin-left:auto;}
+.toggle-row .pill::after{content:'';position:absolute;width:13px;height:13px;border-radius:50%;background:#fff;top:2px;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.15);}
+.toggle-row .pill.on{background:var(--accent);}
+.toggle-row .pill.on::after{left:17px;}
+.toggle-row .pill.off{background:#cbd5e1;}
+.toggle-row .pill.off::after{left:2px;}
+
+.e-indicator{width:18px;height:2px;border-radius:1px;flex-shrink:0;}
+.leg-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12px;color:var(--text-muted);}
+.leg-sq{width:10px;height:10px;border-radius:2px;flex-shrink:0;border:1.5px solid #1e293b;}
+.leg-circ{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1.5px solid #1e293b;}
+.leg-line{width:18px;height:2px;border-radius:1px;flex-shrink:0;}
+.leg-arrow{font-size:10px;color:var(--text-dim);}
+
+/* ── Map area ── */
+#map-wrap{flex:1;position:relative;overflow:hidden;}
+#map{width:100%;height:100%;}
+
+/* Mini-map */
+#minimap-container{position:absolute;top:12px;right:12px;z-index:600;width:190px;height:140px;border:1.5px solid var(--border);border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.10);overflow:hidden;pointer-events:none;}
+#minimap-map{width:100%;height:100%;}
+#minimap-map .leaflet-control-container{display:none;}
+
+/* Tooltip */
+#tip{position:absolute;background:#ffffff;border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:12.5px;pointer-events:none;z-index:800;min-width:180px;display:none;box-shadow:0 4px 16px rgba(0,0,0,.08);color:var(--text);}
+.tip-title{font-weight:600;font-size:13.5px;margin-bottom:8px;color:var(--text);}
+.tip-row{display:flex;justify-content:space-between;gap:14px;padding:2.5px 0;color:var(--text-muted);}
+.tip-val{color:var(--text);font-weight:500;}
+
+/* ── Right sidebar ── */
+#sb-right{width:310px;min-width:310px;background:var(--bg-panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.rs-sec{padding:14px 16px 12px;border-bottom:1px solid var(--border);}
+.rs-title{font-size:14px;font-weight:600;color:var(--text);}
+.rs-sub{font-size:11.5px;color:var(--text-dim);margin-top:3px;}
+
+.det-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12.5px;border-bottom:1px solid var(--border-light);}
+.dk{color:var(--text-muted);}.dv{color:var(--text);font-weight:500;}
+
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+.sbox{background:var(--bg-card);border-radius:6px;padding:10px 12px;border:1px solid var(--border-light);}
+.sn{font-size:20px;font-weight:700;line-height:1.1;}
+.sn-grid{color:var(--grid-color);}.sn-mesh{color:var(--mesh-color);}
+.sn-g2m{color:var(--g2m-color);}.sn-m2g{color:var(--m2g-color);}
+.sl{font-size:10px;color:var(--text-dim);margin-top:4px;}
+
+.histogram-container{margin:8px 0;position:relative;}
+.histogram-container svg{width:100%;overflow:visible;}
+.hist-label{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-dim);}
+.hist-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.hist-bins-wrap{display:flex;align-items:center;gap:3px;font-size:9.5px;color:var(--text-dim);}
+.hist-bins-input{width:34px;font-size:10px;padding:1px 4px;border:1px solid var(--border);border-radius:3px;font-family:inherit;color:var(--text);background:transparent;text-align:center;}
+.hist-bins-input:focus{outline:none;border-color:var(--accent);}
+/* Slider axis alignment — left/right margin matches SVG plot margins (28px left, 8px right in 240px viewBox) */
+.slider-axis-wrap{margin-left:calc(28/240*100%);margin-right:calc(8/240*100%);position:relative;}
+/* Floating thumb value labels */
+.thumb-lbl{position:absolute;top:-15px;transform:translateX(-50%);font-size:9px;font-weight:600;color:var(--text);background:var(--bg-panel);border:1px solid var(--border);border-radius:3px;padding:1px 4px;pointer-events:none;white-space:nowrap;z-index:3;}
+.log-toggle{font-size:9px;font-weight:600;letter-spacing:.04em;padding:1px 6px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;font-family:inherit;color:var(--text-muted);transition:background .15s,color .15s,border-color .15s;}
+.log-toggle:hover{border-color:var(--accent);color:var(--accent);}
+.log-toggle.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.hist-sub-label{font-size:9px;color:var(--text-dim);font-weight:500;margin:6px 0 2px;letter-spacing:.03em;}
+
+/* ── Violation mode ── */
+.violation-count{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11.5px;font-weight:600;background:var(--red-light);color:var(--red);}
+
+/* ── Graph-type selector (violation panel) ── */
+.gt-tabs{display:flex;gap:4px;margin-top:8px;}
+.gt-tab{flex:1;padding:5px 0;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;font-family:inherit;font-size:11.5px;font-weight:600;color:var(--text-muted);transition:background .15s,color .15s,border-color .15s;}
+.gt-tab:hover{border-color:var(--accent);color:var(--accent);}
+.gt-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+.thresh-wrap{margin:6px 0 10px;position:relative;}
+.dual-slider{position:relative;height:24px;width:100%;}
+.dual-slider input[type=range]{position:absolute;width:100%;height:4px;top:10px;-webkit-appearance:none;appearance:none;background:transparent;pointer-events:none;}
+/* Lower thumb = blue (lo threshold), upper thumb = red (hi threshold) */
+#src-deg-min-sl::-webkit-slider-thumb,#tgt-deg-min-sl::-webkit-slider-thumb,#len-min-sl::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--viol-lo);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2);pointer-events:auto;cursor:pointer;position:relative;z-index:2;}
+#src-deg-max-sl::-webkit-slider-thumb,#tgt-deg-max-sl::-webkit-slider-thumb,#len-max-sl::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--viol-hi);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2);pointer-events:auto;cursor:pointer;position:relative;z-index:2;}
+#src-deg-min-sl::-moz-range-thumb,#tgt-deg-min-sl::-moz-range-thumb,#len-min-sl::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--viol-lo);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2);pointer-events:auto;cursor:pointer;}
+#src-deg-max-sl::-moz-range-thumb,#tgt-deg-max-sl::-moz-range-thumb,#len-max-sl::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--viol-hi);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2);pointer-events:auto;cursor:pointer;}
+/* Track: gradient set via JS (blue | grey | red). Initial state plain grey. */
+.slider-track{position:absolute;height:4px;top:10px;left:0;right:0;background:#e2e8f0;border-radius:2px;}
+.thresh-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--text-dim);margin-top:2px;}
+/* Violation count lines under sliders */
+.viol-lines{display:flex;flex-direction:column;gap:3px;margin-top:4px;}
+.viol-line{font-size:11px;font-weight:600;display:flex;align-items:center;gap:5px;}
+.viol-line .vl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.viol-line .vl-n{color:var(--text);}
+.viol-line .vl-label{color:var(--text-muted);font-weight:400;display:inline-flex;align-items:center;gap:3px;}
+
+/* ── Leaflet overrides ── */
+.leaflet-control-zoom a{background:#fff!important;color:#1e293b!important;border:1px solid var(--border)!important;}
+.leaflet-control-attribution{font-size:9px!important;opacity:.6;}
+#map .leaflet-tile-pane{filter:saturate(35%) brightness(1.04);}
+#minimap-map .leaflet-tile-pane{filter:saturate(35%) brightness(1.04);}
+
+/* ── Map type switcher ── */
+#map-type-switcher{position:absolute;bottom:28px;left:12px;z-index:600;display:flex;gap:6px;}
+.mt-btn{width:58px;padding:0;background:#fff;border:2px solid rgba(0,0,0,.14);border-radius:8px;cursor:pointer;overflow:hidden;font-family:inherit;box-shadow:0 1px 5px rgba(0,0,0,.13);transition:border-color .15s, box-shadow .15s;}
+.mt-btn:hover{border-color:rgba(59,130,246,.55);box-shadow:0 2px 10px rgba(0,0,0,.16);}
+.mt-btn.active{border-color:#648FFF;box-shadow:0 0 0 1.5px #648FFF, 0 2px 8px rgba(100,143,255,.25);}
+.mt-preview{width:100%;height:40px;display:block;position:relative;background-size:cover;background-position:center;}
+.mt-preview-map{background:linear-gradient(135deg,#e5eedf 0%,#c9d9c2 45%,#b8c8b0 100%);}
+.mt-preview-sat{background:linear-gradient(135deg,#2e3d1c 0%,#3c5028 45%,#1e2c14 70%,#4a3c1a 100%);}
+.mt-preview-terrain{background:linear-gradient(135deg,#d4c097 0%,#b89a68 40%,#7a9060 70%,#9ab8a0 100%);}
+.mt-btn.active .mt-preview::after{content:'✓';position:absolute;right:4px;top:3px;font-size:11px;font-weight:800;color:#648FFF;text-shadow:0 0 3px #fff;}
+.mt-label{font-size:9.5px;font-weight:600;color:#1e293b;text-align:center;padding:3px 0 4px;display:block;}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<header id="hdr">
+  <div class="logo"><span class="mesh-col">GNN</span> Graph Explorer</div>
+  <div class="h-meta">
+    <div>Graph: <strong id="hdr-graph-name">global_multiscale</strong></div>
+    <div>Nodes: <strong id="hdr-node-count">—</strong></div>
+    <div>Edges: <strong id="hdr-edge-count">—</strong></div>
+  </div>
+  <div class="h-right">
+    <div id="loading-badge">Loading…</div>
+    <label class="inspect-switch" id="inspect-toggle">
+      <span>Inspect Violations</span>
+      <div class="sw-track" id="sw-track"></div>
+    </label>
+  </div>
+</header>
+
+<div id="main">
+
+<!-- ═══════════════════ LEFT SIDEBAR ═══════════════════ -->
+<div id="sb-left">
+  <div class="sb-sec">
+    <div class="sb-hd">Node Layers</div>
+    <div class="toggle-row" onclick="toggleLayer('grid')">
+      <div class="indicator" style="background:var(--grid-color);"></div>
+      <span>Grid nodes</span>
+      <div class="pill on" id="pl-grid"></div>
+    </div>
+    <div class="toggle-row" onclick="toggleLayer('mesh')">
+      <div class="indicator circle" style="background:var(--mesh-color);"></div>
+      <span>Mesh nodes</span>
+      <div class="pill on" id="pl-mesh"></div>
+    </div>
+  </div>
+
+  <div class="sb-sec">
+    <div class="sb-hd">Edge Types</div>
+    <div class="toggle-row" onclick="toggleEdge('g2m')">
+      <div class="e-indicator" style="background:var(--g2m-color);"></div>
+      <span>G2M</span>
+      <span style="font-size:11px;color:var(--text-dim);margin-right:auto;">encoder</span>
+      <div class="pill on" id="pe-g2m"></div>
+    </div>
+    <div class="toggle-row" onclick="toggleEdge('m2m')">
+      <div class="e-indicator" style="background:var(--mesh-color);"></div>
+      <span>M2M</span>
+      <span style="font-size:11px;color:var(--text-dim);margin-right:auto;">process</span>
+      <div class="pill on" id="pe-m2m"></div>
+    </div>
+    <div class="toggle-row" onclick="toggleEdge('m2g')">
+      <div class="e-indicator" style="background:var(--m2g-color);"></div>
+      <span>M2G</span>
+      <span style="font-size:11px;color:var(--text-dim);margin-right:auto;">decoder</span>
+      <div class="pill on" id="pe-m2g"></div>
+    </div>
+  </div>
+
+  <div class="sb-sec">
+    <div class="sb-hd">Legend</div>
+    <div class="leg-row"><div class="leg-sq" style="background:var(--grid-color);"></div>Grid node</div>
+    <div class="leg-row"><div class="leg-circ" style="background:var(--mesh-color);"></div>Mesh node</div>
+    <div style="height:6px"></div>
+    <div class="leg-row"><div class="leg-line" style="background:var(--mesh-color);"></div>M2M edge</div>
+    <div class="leg-row"><div class="leg-line" style="background:var(--g2m-color);"></div>G2M <span class="leg-arrow">(→ mesh)</span></div>
+    <div class="leg-row"><div class="leg-line" style="background:var(--m2g-color);"></div>M2G <span class="leg-arrow">(→ grid)</span></div>
+    <div style="height:4px"></div>
+    <div class="leg-row"><div class="leg-circ" style="background:transparent;border-color:var(--red);"></div><span style="color:var(--red);">Violation (high)</span></div>
+    <div class="leg-row"><div class="leg-circ" style="background:transparent;border-color:var(--blue-viol);"></div><span style="color:var(--blue-viol);">Violation (low)</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MAP ═══════════════════ -->
+<div id="map-wrap">
+  <div id="map"></div>
+  <div id="minimap-container"><div id="minimap-map"></div></div>
+  <div id="map-type-switcher">
+    <button class="mt-btn active" data-type="map" onclick="setMapType('map')">
+      <span class="mt-preview mt-preview-map"></span>
+      <span class="mt-label">Map</span>
+    </button>
+    <button class="mt-btn" data-type="satellite" onclick="setMapType('satellite')">
+      <span class="mt-preview mt-preview-sat"></span>
+      <span class="mt-label">Satellite</span>
+    </button>
+    <button class="mt-btn" data-type="terrain" onclick="setMapType('terrain')">
+      <span class="mt-preview mt-preview-terrain"></span>
+      <span class="mt-label">Terrain</span>
+    </button>
+  </div>
+  <div id="tip">
+    <div class="tip-title" id="tip-title"></div>
+    <div id="tip-body"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════ RIGHT SIDEBAR ═══════════════════ -->
+<div id="sb-right">
+  <!-- Normal mode panel -->
+  <div id="pnl-graph">
+    <div class="rs-sec">
+      <div class="rs-title" id="info-title">Element Info</div>
+      <div class="rs-sub" id="info-sub">Click a node or edge to inspect</div>
+    </div>
+    <div id="info-details" class="rs-sec" style="display:none;"></div>
+    <div class="rs-sec" id="graph-stats-sec">
+      <div class="sb-hd">Viewport Statistics</div>
+      <div class="stats-grid" id="stats-grid"></div>
+    </div>
+  </div>
+
+  <!-- Violation mode panel -->
+  <div id="pnl-viol" style="display:none;">
+    <div class="rs-sec">
+      <div class="rs-title">Violation Inspection</div>
+      <div class="rs-sub">Select a subgraph, then adjust thresholds</div>
+      <div class="gt-tabs">
+        <button class="gt-tab active" data-type="g2m" onclick="setViolGraphType('g2m')">G2M</button>
+        <button class="gt-tab"        data-type="m2m" onclick="setViolGraphType('m2m')">M2M</button>
+        <button class="gt-tab"        data-type="m2g" onclick="setViolGraphType('m2g')">M2G</button>
+      </div>
+    </div>
+    <div class="rs-sec">
+      <div class="hist-header">
+        <span class="hist-label">Node Degree</span>
+      </div>
+      <div id="deg-hist-src-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+          <div class="hist-sub-label" id="deg-hist-src-label">Grid nodes (src)</div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <button class="log-toggle" id="src-deg-logx-btn" onclick="toggleSrcDegLogScaleX()">log x</button>
+            <button class="log-toggle" id="src-deg-logy-btn" onclick="toggleSrcDegLogScaleY()">log y</button>
+          </div>
+        </div>
+        <div class="histogram-container" id="viol-degree-hist-src"></div>
+        <div class="thresh-wrap">
+          <div class="slider-axis-wrap">
+            <div class="dual-slider">
+              <div class="slider-track" id="src-deg-track"></div>
+              <span class="thumb-lbl" id="src-deg-lbl-min" style="left:3%">1</span>
+              <span class="thumb-lbl" id="src-deg-lbl-max" style="left:67%">20</span>
+              <input type="range" min="0" max="30" step="1" value="1"  id="src-deg-min-sl">
+              <input type="range" min="0" max="30" step="1" value="20" id="src-deg-max-sl">
+            </div>
+          </div>
+          <div class="thresh-labels"><span id="src-deg-min-lbl-bot">Min: 1</span><span id="src-deg-max-lbl-bot">Max: 20</span></div>
+        </div>
+        <div class="viol-lines" id="src-deg-violation-count"></div>
+      </div>
+      <div id="deg-hist-tgt-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;margin-top:8px;">
+          <div class="hist-sub-label" id="deg-hist-tgt-label">Mesh nodes (tgt)</div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <button class="log-toggle" id="tgt-deg-logx-btn" onclick="toggleTgtDegLogScaleX()">log x</button>
+            <button class="log-toggle" id="tgt-deg-logy-btn" onclick="toggleTgtDegLogScaleY()">log y</button>
+          </div>
+        </div>
+        <div class="histogram-container" id="viol-degree-hist-tgt"></div>
+        <div class="thresh-wrap">
+          <div class="slider-axis-wrap">
+            <div class="dual-slider">
+              <div class="slider-track" id="tgt-deg-track"></div>
+              <span class="thumb-lbl" id="tgt-deg-lbl-min" style="left:3%">1</span>
+              <span class="thumb-lbl" id="tgt-deg-lbl-max" style="left:67%">20</span>
+              <input type="range" min="0" max="30" step="1" value="1"  id="tgt-deg-min-sl">
+              <input type="range" min="0" max="30" step="1" value="20" id="tgt-deg-max-sl">
+            </div>
+          </div>
+          <div class="thresh-labels"><span id="tgt-deg-min-lbl-bot">Min: 1</span><span id="tgt-deg-max-lbl-bot">Max: 20</span></div>
+        </div>
+        <div class="viol-lines" id="tgt-deg-violation-count"></div>
+      </div>
+    </div>
+    <div class="rs-sec">
+      <div class="hist-header">
+        <span class="hist-label">Edge Length (km)</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button class="log-toggle" id="len-logx-btn" onclick="toggleLenLogScaleX()">log x</button>
+          <button class="log-toggle" id="len-logy-btn" onclick="toggleLenLogScaleY()">log y</button>
+          <div class="hist-bins-wrap">bins <input class="hist-bins-input" id="len-bins" type="number" min="2" max="60" value="15"></div>
+        </div>
+      </div>
+      <div class="histogram-container" id="viol-edge-hist"></div>
+      <div class="thresh-wrap">
+        <div class="slider-axis-wrap">
+          <div class="dual-slider">
+            <div class="slider-track" id="len-track"></div>
+            <span class="thumb-lbl" id="len-lbl-min" style="left:3%">20</span>
+            <span class="thumb-lbl" id="len-lbl-max" style="left:67%">400</span>
+            <input type="range" min="0" max="600" step="5"  value="20"  id="len-min-sl">
+            <input type="range" min="0" max="600" step="5"  value="400" id="len-max-sl">
+          </div>
+        </div>
+        <div class="thresh-labels"><span id="len-min-lbl-bot">Min: 20 km</span><span id="len-max-lbl-bot">Max: 400 km</span></div>
+      </div>
+      <div class="viol-lines" id="len-violation-count"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- #main -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════
+var API      = 'http://localhost:8080';
+var GRAPH_ID = '1';
+var FETCH_DEBOUNCE_MS = 400;
+
+// ═══════════════════════════════════════════════════════════════
+// DATA  (populated from API on each viewport change)
+// ═══════════════════════════════════════════════════════════════
+var gridNodes = [], meshNodes = [];
+var gridById  = {}, meshById  = {};
+var g2mEdges  = [], m2mEdges  = [], m2gEdges = [];
+var prevBbox  = null;  // previous viewport bbox — used for incremental delta fetching
+var violGen   = 0;     // incremented on each fetchViolations call; guards against stale results coloring wrong nodes
+
+// Violation ID sets — split into lo (below threshold) and hi (above threshold)
+var violGridIds_lo  = new Set(), violGridIds_hi  = new Set();
+var violMeshIds_lo  = new Set(), violMeshIds_hi  = new Set();
+var violEdgeKeys_lo = new Set(), violEdgeKeys_hi = new Set();
+// Combined sets — used for fast "is this a violation?" check in drawing
+var violGridIds = new Set(), violMeshIds = new Set(), violEdgeKeys = new Set();
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+var ST = {
+  showGrid: true, showMesh: true,
+  showG2M:  true, showM2M:  true, showM2G: true,
+  selected: null, violation: false,
+  violGraphType: 'g2m',
+  srcDegMin: 0, srcDegMax: 30,
+  tgtDegMin: 0, tgtDegMax: 30,
+  lenSliderMax: 600,
+  srcDegLogScaleX: false, srcDegLogScaleY: false,
+  tgtDegLogScaleX: false, tgtDegLogScaleY: false,
+  lenLogScaleX: false, lenLogScaleY: false,
+};
+
+// Client-side mean ± 2σ — mirrors the backend _two_std_bounds used for initial slider defaults.
+function _twoStdBounds(arr) {
+  if (!arr || !arr.length) return [0, 100];
+  var n = arr.length;
+  var mean = arr.reduce(function(s, v) { return s + v; }, 0) / n;
+  var std  = Math.sqrt(arr.reduce(function(s, v) { return s + (v - mean) * (v - mean); }, 0) / n);
+  return [Math.max(0, mean - 2 * std), mean + 2 * std];
+}
+
+// Full-graph distributions — fetched once per subgraph selection, used for histograms
+var fullGraphSrcDeg = [];
+var fullGraphTgtDeg = [];
+var fullGraphLengths = [];
+
+// Total node counts from graph meta — used for n/N display in violation panel
+var graphMeta = { n_grid: 0, n_mesh: 0 };
+
+// ── Violation colours — mirror CSS vars so JS and CSS stay in sync ───────────
+var VIOL_HI  = '#dc2626';   // above upper threshold (red)
+var VIOL_LO  = '#2563eb';   // below lower threshold (blue)
+var VIOL_GREY = '#6b7280';  // non-violating in inspect mode (medium grey)
+
+// Full-graph violation totals (no bbox filter) — updated alongside viewport sets
+var violTotals = { gridLo: 0, gridHi: 0, meshLo: 0, meshHi: 0, edgeLo: 0, edgeHi: 0 };
+
+// Node-type descriptor for each graph type — drives violation count rows.
+// Extend here when new graph types are added; nothing else needs to change.
+var GRAPH_TYPE_NODES = {
+  g2m: [{label:'Grid nodes', set:'grid'}, {label:'Mesh nodes', set:'mesh'}],
+  m2m: [{label:'Mesh nodes', set:'mesh'}],
+  m2g: [{label:'Mesh nodes', set:'mesh'}, {label:'Grid nodes', set:'grid'}],
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MAP SETUP
+// ═══════════════════════════════════════════════════════════════
+var MAP_TYPES = {
+  map: {
+    url:  'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    opts: { subdomains: 'abcd', maxZoom: 19 },
+    attr: '&copy; <a href="https://osm.org">OSM</a> &copy; <a href="https://carto.com">CARTO</a>',
+    filter: 'saturate(35%) brightness(1.04)',
+  },
+  satellite: {
+    url:  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    opts: { maxZoom: 19 },
+    attr: '&copy; Esri, Maxar, Earthstar Geographics',
+    filter: 'saturate(60%) brightness(0.93)',
+  },
+  terrain: {
+    url:  'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    opts: { subdomains: 'abc', maxZoom: 17 },
+    attr: '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> &copy; OSM',
+    filter: 'saturate(45%) brightness(1.0)',
+  },
+};
+var currentMapType = 'map';
+
+var leafMap = L.map('map', { center: [20, 0], zoom: 3, zoomControl: false, attributionControl: true });
+var activeTileLayer = L.tileLayer(MAP_TYPES.map.url, Object.assign({ attribution: MAP_TYPES.map.attr }, MAP_TYPES.map.opts)).addTo(leafMap);
+L.control.zoom({ position: 'bottomright' }).addTo(leafMap);
+
+// ═══════════════════════════════════════════════════════════════
+// DECK.GL SETUP
+//
+// WHY the canvas lives in #map-wrap (OUTSIDE Leaflet's mapPane):
+//
+//   The overlayPane approach is fundamentally broken for real-time
+//   pan.  The problem is GPU double-buffering:
+//     • CSS transform (canvas position) updates in JS frame N
+//     • WebGL pixels land in the back buffer and swap to front
+//       at the next GPU vsync — frame N+1
+//   The browser compositor picks up CSS from frame N and WebGL
+//   pixels from frame N-1.  That guaranteed 1-frame mismatch =
+//   permanent drift that no amount of redraw(true) can close.
+//
+//   With the canvas outside mapPane, its CSS position NEVER changes.
+//   Only the WebGL CONTENT changes (via _syncDeckView → redraw(true)).
+//   CSS/GPU timing race disappears entirely.
+//
+//  Pan:  deck.gl re-renders with new viewport on every 'move'.
+//        redraw(true) forces sync WebGL submission so the new frame
+//        is ready for the same compositor cycle as the tile update.
+//
+//  Zoom anim: zoomanim fires once at CSS-transition start.
+//        We apply the same scale+translate CSS transform to _deckCanvas
+//        that Leaflet applies to its tile pane.  _isZoomAnimating blocks
+//        _syncDeckView during the transition.  zoomend clears it.
+//
+//  DPR/retina: canvas.width/height are NOT set manually.
+//        deck.gl manages the physical pixel buffer via useDevicePixels.
+//        We only set canvas.style.width/height (CSS display size).
+// ═══════════════════════════════════════════════════════════════
+var mw = document.getElementById('map-wrap');
+
+// Canvas lives directly in #map-wrap, above tiles, below minimap/tooltip
+var _deckCanvas = document.createElement('canvas');
+_deckCanvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:500;';
+mw.appendChild(_deckCanvas);
+
+var _deck = null;
+
+function _resizeDeck() {
+  // Use leafMap.getSize() — the exact pixel dimensions Leaflet computed for its
+  // own viewport — so deck.gl's projection center (W/2, H/2) is guaranteed to
+  // coincide with Leaflet's projection center.  mw.clientWidth/Height may differ
+  // by a subpixel or scrollbar width if anything in the layout shifts slightly.
+  var sz = leafMap.getSize();
+  var w = sz.x, h = sz.y;
+  _deckCanvas.style.width  = w + 'px';
+  _deckCanvas.style.height = h + 'px';
+  if (_deck) _deck.setProps({ width: w, height: h });
+}
+
+// _initDeck is called from boot() after whenReady+200ms so mw.clientHeight > 0
+function _initDeck() {
+  _resizeDeck();
+  var c  = leafMap.getCenter();
+  var sz = leafMap.getSize();
+  _deck = new deck.Deck({
+    canvas: _deckCanvas,
+    width:  sz.x,
+    height: sz.y,
+    // useDevicePixels: true is the default (deck.gl sets canvas.width *= DPR)
+    controller: false,
+    // deck.gl uses WORLD_SIZE=512 (Mapbox convention); Leaflet uses 256px tiles.
+    // At the same integer zoom, deck.gl renders at 2× Leaflet's pixel scale:
+    //   deck.gl pixelsPerDegree = 512·2^Z/360
+    //   Leaflet pixelsPerDegree = 256·2^Z/360
+    // Nodes would move at 2× the speed of tiles during pan — visible drift.
+    // Fix: subtract 1 from every zoom value we pass to deck.gl so both agree.
+    initialViewState: {
+      longitude: c.lng, latitude: c.lat,
+      zoom: leafMap.getZoom() - 1, pitch: 0, bearing: 0,
+    },
+    layers: [],
+  });
+}
+
+var _isZoomAnimating = false;
+
+// Fires every Leaflet 'move' frame.  redraw(true) forces synchronous WebGL
+// submission so the new frame is ready before the browser compositor runs.
+function _syncDeckView() {
+  if (!_deck || _isZoomAnimating) return;
+  var c = leafMap.getCenter();
+  _deck.setProps({ viewState: {
+    longitude: c.lng, latitude: c.lat,
+    zoom: leafMap.getZoom() - 1,  // -1: deck.gl WORLD_SIZE=512, Leaflet=256
+    pitch: 0, bearing: 0,
+    transitionDuration: 0,
+  }});
+  _deck.redraw(true);
+}
+leafMap.on('move', _syncDeckView);
+
+// Zoom animation: zoomanim fires once at CSS-transition start.
+//
+// e.center is the NEW map center (LatLng), not the zoom pivot directly.
+// The pivot P (the screen point that stays fixed) is derived as:
+//
+//   P = (s × C − screenCenter) / (s − 1)
+//
+// where C = latLngToContainerPoint(e.center) at the current (old) zoom and
+// screenCenter = (W/2, H/2).  Proof: for center zoom C = screenCenter → P = W/2;
+// for scroll-wheel zoom toward mouse (mx,my), C = mx·(1-1/s)+W/(2s) → P = mx. ✓
+// M (mapPane pan offset) cancels in the derivation, so no correction needed.
+leafMap.on('zoomanim', function(e) {
+  if (!_deckCanvas) return;
+  _isZoomAnimating = true;
+  var s = e.scale;
+  if (!s || Math.abs(s - 1) < 1e-6) return;
+  var sz = leafMap.getSize();
+  var C  = leafMap.latLngToContainerPoint(e.center);
+  var px = (s * C.x - sz.x / 2) / (s - 1);
+  var py = (s * C.y - sz.y / 2) / (s - 1);
+  _deckCanvas.style.transformOrigin = px + 'px ' + py + 'px';
+  _deckCanvas.style.transform = 'scale(' + s + ')';
+});
+
+leafMap.on('zoomend', function() {
+  _isZoomAnimating = false;
+  _deckCanvas.style.transform = '';
+  _deckCanvas.style.transformOrigin = '';
+  _syncDeckView();
+  renderLayers();
+});
+
+window.addEventListener('resize', function() { _resizeDeck(); _syncDeckView(); });
+
+var deckLayer = {
+  setProps: function(p) { if (_deck) _deck.setProps(p); },
+};
+
+// ── Color helper ─────────────────────────────────────────────────
+function hexToRgba(hex, a) {
+  var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return [r, g, b, a == null ? 255 : a];
+}
+
+// ── SVG icon builders (data-URL sprites) ─────────────────────────
+// Use 64px sprites — deck.gl rasterises SVG data-URLs to textures;
+// 64px ensures the texture is large enough to stay sharp when nodes
+// are rendered up to ~60px on screen.  (14px textures upscale badly.)
+var SPRITE_SIZE = 64;
+function makeSquareIcon(fillHex, strokeHex) {
+  var s = SPRITE_SIZE, sw = Math.max(2, Math.round(s * 0.05));
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + s + '" height="' + s + '">' +
+    '<rect x="' + sw + '" y="' + sw + '" width="' + (s - sw*2) + '" height="' + (s - sw*2) +
+    '" fill="' + fillHex + '" stroke="' + strokeHex + '" stroke-width="' + sw + '"/></svg>';
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+// Triangle pointing right (+x); tip at (size, size/2)
+function makeArrowIcon(fillHex) {
+  var s = SPRITE_SIZE;
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + s + '" height="' + s + '">' +
+    '<polygon points="' + s + ',' + (s/2) + ' 0,0 ' + Math.round(s*0.28) + ',' + (s/2) + ' 0,' + s + '" fill="' + fillHex + '"/></svg>';
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+// Pre-built icon sprites (grid squares + arrowheads only; mesh circles use ScatterplotLayer)
+var ICONS = {};
+function buildIcons() {
+  ICONS.grid_normal = makeSquareIcon('#FE6100', '#1e293b');
+  ICONS.grid_grey   = makeSquareIcon(VIOL_GREY, '#1e293b');
+  ICONS.grid_hi     = makeSquareIcon(VIOL_HI,   '#1e293b');
+  ICONS.grid_lo     = makeSquareIcon(VIOL_LO,   '#1e293b');
+  ICONS.arrow_g2m   = makeArrowIcon('#785EF0');
+  ICONS.arrow_m2g   = makeArrowIcon('#DC267F');
+  ICONS.arrow_grey  = makeArrowIcon(VIOL_GREY);
+  ICONS.arrow_hi    = makeArrowIcon(VIOL_HI);
+  ICONS.arrow_lo    = makeArrowIcon(VIOL_LO);
+}
+buildIcons();
+
+// ── Arrowhead geometry helpers ───────────────────────────────────
+// Distance (px) from center of 7×7px square to its border in direction angleDeg
+function squareBorderDist(angleDeg) {
+  var h = 3.5, rad = angleDeg * Math.PI / 180;
+  var cx = Math.abs(Math.cos(rad)), cy = Math.abs(Math.sin(rad));
+  return Math.min(cx > 1e-10 ? h/cx : 1e9, cy > 1e-10 ? h/cy : 1e9);
+}
+// Node diameter in meters — governs size at all zoom levels.
+// No sizeMaxPixels/radiusMaxPixels cap: the CSS zoomanim doubles nodes visually,
+// and deck.gl's post-animation size also doubles (meter-based). They always agree,
+// so there is no snap. A cap would break this agreement (CSS shows 2×cap, deck.gl
+// renders cap → visible snap). Weather-model users rarely zoom past Z=7 anyway.
+var NODE_SIZE_M   = 20000;
+var NODE_BORDER_M = NODE_SIZE_M / 2;
+// Web Mercator tiles only cover ±85.05°. Leaflet implicitly clamped polar nodes
+// to this limit via latLngToContainerPoint; deck.gl does not. clampLat replicates
+// that behaviour so polar nodes pin to the tile edge instead of floating in gray space.
+var _MERC_MAX = 85.05113;
+function clampLat(lat) { return lat > _MERC_MAX ? _MERC_MAX : lat < -_MERC_MAX ? -_MERC_MAX : lat; }
+// squareBorderDist returns a [0,1] fraction of NODE_BORDER_M at a given angle
+// Returns adjusted [lon, lat] target so the edge ends at the node's visual border
+// Uses meter-based offset (zoom-independent, matches sizeUnits:'meters' nodes)
+function adjustedEndpoint(srcLonLat, tgtLonLat, tgtIsSquare) {
+  var dx = tgtLonLat[0] - srcLonLat[0], dy = tgtLonLat[1] - srcLonLat[1];
+  var angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+  // squareBorderDist gives fraction relative to half-size 3.5; scale to NODE_BORDER_M
+  var borderM = tgtIsSquare ? squareBorderDist(angleDeg + 180) / 3.5 * NODE_BORDER_M : NODE_BORDER_M;
+  // 1 degree latitude ≈ 111000m; longitude degree varies but use same approx for small offsets
+  var borderDeg = borderM / 111000;
+  var len = Math.hypot(dx, dy);
+  if (len <= borderDeg) return tgtLonLat;
+  var scale = (len - borderDeg) / len;
+  return [srcLonLat[0] + dx * scale, srcLonLat[1] + dy * scale];
+}
+
+// ── Compute local (viewport) degrees from loaded edges ──────────
+function computeDegrees() {
+  var deg = {};
+  gridNodes.forEach(function(n) { deg[n.id] = 0; });
+  meshNodes.forEach(function(n) { deg[n.id] = 0; });
+  function inc(id) { if (id in deg) deg[id]++; }
+  if (ST.showG2M) g2mEdges.forEach(function(e) { inc(e.source); inc(e.target); });
+  if (ST.showM2M) m2mEdges.forEach(function(e) { inc(e.source); inc(e.target); });
+  if (ST.showM2G) m2gEdges.forEach(function(e) { inc(e.source); inc(e.target); });
+  return deg;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER (deck.gl layer builder — replaces canvas redraw)
+// ═══════════════════════════════════════════════════════════════
+function renderLayers() {
+  deckLayer.setProps({ layers: buildLayers() });
+}
+
+function buildLayers() {
+  var isViol = ST.violation;
+  // Changing this string forces deck.gl to re-evaluate all cached accessors that
+  // depend on violation state. Without this, deck.gl sees the same data reference
+  // after fetchViolations updates the sets and skips re-coloring existing nodes.
+  var violHash = [
+    isViol,
+    violGridIds_lo.size, violGridIds_hi.size,
+    violMeshIds_lo.size, violMeshIds_hi.size,
+    violEdgeKeys_lo.size, violEdgeKeys_hi.size,
+  ].join(':');
+
+  var layers = [];
+
+  // ── Shared edge helpers ───────────────────────────────────────
+  function eKey(e)  { return e.source + ':' + e.target; }
+  function eColor(key, normalHex, normalA) {
+    if (!isViol)                    return hexToRgba(normalHex, normalA);
+    if (violEdgeKeys_hi.has(key))   return hexToRgba(VIOL_HI, 230);
+    if (violEdgeKeys_lo.has(key))   return hexToRgba(VIOL_LO, 230);
+    return hexToRgba(VIOL_GREY, 55);
+  }
+  function eWidth(key) { return (!isViol || violEdgeKeys.has(key)) ? 1.8 : 1.0; }
+  function arrowIcon(key, normalIcon) {
+    var url = !isViol                    ? normalIcon
+            : violEdgeKeys_hi.has(key)   ? ICONS.arrow_hi
+            : violEdgeKeys_lo.has(key)   ? ICONS.arrow_lo
+            :                              ICONS.arrow_grey;
+    return { url: url, width: SPRITE_SIZE, height: SPRITE_SIZE, anchorX: SPRITE_SIZE, anchorY: SPRITE_SIZE / 2 };
+  }
+  function edgeAngle(e) {
+    return Math.atan2(e.tgt.lat - e.src.lat, e.tgt.lon - e.src.lon) * 180 / Math.PI;
+  }
+  function srcPos(e) { return [e.src.lon, clampLat(e.src.lat)]; }
+
+  // ── M2M edges (undirected, no arrowheads) ────────────────────
+  if (ST.showM2M && m2mEdges.length) {
+    layers.push(new deck.LineLayer({
+      id: 'm2m-edges', data: m2mEdges,
+      getSourcePosition: srcPos,
+      getTargetPosition: function(e) { return [e.tgt.lon, clampLat(e.tgt.lat)]; },
+      getColor: function(e) { return eColor(eKey(e), '#648FFF', 165); },
+      getWidth: function(e) { return eWidth(eKey(e)); },
+      widthUnits: 'pixels', wrapLongitude: true,
+      updateTriggers: { getColor: violHash, getWidth: violHash },
+    }));
+  }
+
+  // ── Directed edge helper: line + arrowhead pair (G2M and M2G share this) ──
+  function addDirectedEdges(id, data, normalColor, normalOpacity, normalArrow, tgtIsSquare) {
+    if (!data.length) return;
+    function tgtPos(e) {
+      return adjustedEndpoint(srcPos(e), [e.tgt.lon, clampLat(e.tgt.lat)], tgtIsSquare);
+    }
+    layers.push(new deck.LineLayer({
+      id: id + '-edges', data: data,
+      getSourcePosition: srcPos,
+      getTargetPosition: tgtPos,
+      getColor: function(e) { return eColor(eKey(e), normalColor, normalOpacity); },
+      getWidth: function(e) { return eWidth(eKey(e)); },
+      widthUnits: 'pixels', wrapLongitude: true,
+      updateTriggers: { getColor: violHash, getWidth: violHash },
+    }));
+    layers.push(new deck.IconLayer({
+      id: id + '-arrows', data: data,
+      getPosition: tgtPos,
+      getIcon: function(e) { return arrowIcon(eKey(e), normalArrow); },
+      getAngle: edgeAngle,
+      getSize: NODE_SIZE_M * 0.7, sizeUnits: 'meters', sizeMinPixels: 3, wrapLongitude: true,
+      updateTriggers: { getIcon: violHash },
+    }));
+  }
+
+  if (ST.showG2M) addDirectedEdges('g2m', g2mEdges, '#785EF0', 140, ICONS.arrow_g2m, false);
+  if (ST.showM2G) addDirectedEdges('m2g', m2gEdges, '#DC267F', 128, ICONS.arrow_m2g, true);
+
+  // ── Grid nodes (squares via IconLayer) ───────────────────────
+  if (ST.showGrid && gridNodes.length) {
+    layers.push(new deck.IconLayer({
+      id: 'grid-nodes', data: gridNodes,
+      getPosition: function(n) { return [n.lon, clampLat(n.lat)]; },
+      getIcon: function(n) {
+        var url = !isViol                   ? ICONS.grid_normal
+                : violGridIds_hi.has(n.id)  ? ICONS.grid_hi
+                : violGridIds_lo.has(n.id)  ? ICONS.grid_lo
+                :                             ICONS.grid_grey;
+        return { url: url, width: SPRITE_SIZE, height: SPRITE_SIZE, anchorX: SPRITE_SIZE/2, anchorY: SPRITE_SIZE/2 };
+      },
+      getSize: NODE_SIZE_M, sizeUnits: 'meters', sizeMinPixels: 3, pickable: true,
+      updateTriggers: { getIcon: violHash },
+    }));
+  }
+
+  // ── Mesh nodes (circles via ScatterplotLayer) ─────────────────
+  if (ST.showMesh && meshNodes.length) {
+    layers.push(new deck.ScatterplotLayer({
+      id: 'mesh-nodes', data: meshNodes,
+      getPosition: function(n) { return [n.lon, clampLat(n.lat)]; },
+      getRadius: NODE_SIZE_M / 2, radiusUnits: 'meters', radiusMinPixels: 3,
+      getFillColor: function(n) {
+        if (!isViol)                   return hexToRgba('#648FFF', 255);
+        if (violMeshIds_hi.has(n.id))  return hexToRgba(VIOL_HI,  255);
+        if (violMeshIds_lo.has(n.id))  return hexToRgba(VIOL_LO,  255);
+        return hexToRgba(VIOL_GREY, 255);
+      },
+      stroked: true, filled: true,
+      getLineColor: hexToRgba('#1e293b', 200),
+      lineWidthMinPixels: 1, lineWidthUnits: 'pixels', pickable: true,
+      updateTriggers: { getFillColor: violHash },
+    }));
+  }
+
+  // ── Selection ring (topmost) ──────────────────────────────────
+  if (ST.selected) {
+    layers.push(new deck.ScatterplotLayer({
+      id: 'selection-ring', data: [ST.selected],
+      getPosition: function(n) { return [n.lon, clampLat(n.lat)]; },
+      getRadius: NODE_SIZE_M * 0.65, radiusUnits: 'meters', radiusMinPixels: 5,
+      stroked: true, filled: false,
+      getLineColor: hexToRgba('#FFB000', 200),
+      getLineWidth: 2.5, lineWidthUnits: 'pixels',
+    }));
+  }
+
+  // Layer order: edges → nodes → selection ring
+  return layers;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// API — FETCH HELPERS
+// ═══════════════════════════════════════════════════════════════
+function getBbox() {
+  var b = leafMap.getBounds();
+  return { min_lat: b.getSouth(), max_lat: b.getNorth(), min_lon: b.getWest(), max_lon: b.getEast() };
+}
+
+function bboxParams(bbox, prev) {
+  var p = {
+    min_lat: bbox.min_lat, max_lat: bbox.max_lat,
+    min_lon: bbox.min_lon, max_lon: bbox.max_lon,
+  };
+  if (prev) {
+    p.prev_min_lat = prev.min_lat; p.prev_max_lat = prev.max_lat;
+    p.prev_min_lon = prev.min_lon; p.prev_max_lon = prev.max_lon;
+  }
+  return new URLSearchParams(p);
+}
+
+function inBbox(node, bbox) {
+  return node.lat >= bbox.min_lat && node.lat <= bbox.max_lat &&
+         node.lon >= bbox.min_lon && node.lon <= bbox.max_lon;
+}
+
+// Build edge objects from self-contained API response (coordinates embedded, no node lookup needed)
+// Edge length: features.f0 * 1000 (f0 = dist_km / 1000 in the .pt files)
+function buildEdges(apiEdges) {
+  var result = [];
+  for (var i = 0; i < apiEdges.length; i++) {
+    var e = apiEdges[i];
+    result.push({
+      src: { id: e.source, lat: e.src_lat, lon: e.src_lon },
+      tgt: { id: e.target, lat: e.tgt_lat, lon: e.tgt_lon },
+      source: e.source, target: e.target,
+      len: e.features && e.features.f0 != null ? e.features.f0 * 1000 : 0
+    });
+  }
+  return result;
+}
+
+function setLoading(on) {
+  document.getElementById('loading-badge').classList.toggle('active', on);
+}
+
+// ── Main fetch: load all graph data for the current viewport ────
+var _fetchTimer = null;
+function scheduleFetch() {
+  if (_fetchTimer) clearTimeout(_fetchTimer);
+  _fetchTimer = setTimeout(fetchAndRender, FETCH_DEBOUNCE_MS);
+}
+
+async function fetchAndRender() {
+  setLoading(true);
+  try {
+    var bbox   = getBbox();
+    var prev   = prevBbox;  // snapshot before any async gap
+    var params = bboxParams(bbox, prev).toString();
+
+    // ── All fetches in parallel (edges are self-contained, no node-map dependency) ──
+    var fetchEdge = function(key) {
+      return fetch(API + '/graphs/' + GRAPH_ID + '/edges/' + key + '?' + params)
+        .then(function(r) { return r.json(); })
+        .then(buildEdges);
+    };
+
+    var [gridDelta, meshDelta, g2mDelta, m2mDelta, m2gDelta] = await Promise.all([
+      fetch(API + '/graphs/' + GRAPH_ID + '/nodes/grid?' + params).then(function(r) { return r.json(); }),
+      fetch(API + '/graphs/' + GRAPH_ID + '/nodes/mesh?' + params).then(function(r) { return r.json(); }),
+      fetchEdge('g2m'),
+      fetchEdge('m2m'),
+      fetchEdge('m2g'),
+    ]);
+
+    // ── Nodes ─────────────────────────────────────────────────────
+    if (prev) {
+      gridNodes = gridNodes.filter(function(n) { return inBbox(n, bbox); });
+      meshNodes = meshNodes.filter(function(n) { return inBbox(n, bbox); });
+      gridDelta.forEach(function(n) { n.type = 'grid'; gridNodes.push(n); gridById[n.id] = n; });
+      meshDelta.forEach(function(n) { n.type = 'mesh'; meshNodes.push(n); meshById[n.id] = n; });
+      Object.keys(gridById).forEach(function(id) { if (!inBbox(gridById[id], bbox)) delete gridById[id]; });
+      Object.keys(meshById).forEach(function(id) { if (!inBbox(meshById[id], bbox)) delete meshById[id]; });
+    } else {
+      gridNodes = gridDelta; meshNodes = meshDelta;
+      gridById  = {}; meshById = {};
+      gridNodes.forEach(function(n) { n.type = 'grid'; gridById[n.id] = n; });
+      meshNodes.forEach(function(n) { n.type = 'mesh'; meshById[n.id] = n; });
+    }
+
+    // ── Edges ──────────────────────────────────────────────────────
+    // Stale = both endpoints left the viewport (OR semantics: keep if either is still visible)
+    if (prev) {
+      g2mEdges = g2mEdges.filter(function(e) { return inBbox(e.src, bbox) || inBbox(e.tgt, bbox); });
+      m2mEdges = m2mEdges.filter(function(e) { return inBbox(e.src, bbox) || inBbox(e.tgt, bbox); });
+      m2gEdges = m2gEdges.filter(function(e) { return inBbox(e.src, bbox) || inBbox(e.tgt, bbox); });
+      g2mEdges = g2mEdges.concat(g2mDelta);
+      m2mEdges = m2mEdges.concat(m2mDelta);
+      m2gEdges = m2gEdges.concat(m2gDelta);
+    } else {
+      g2mEdges = g2mDelta;
+      m2mEdges = m2mDelta;
+      m2gEdges = m2gDelta;
+    }
+
+    prevBbox = bbox;  // commit only on success
+    updateHeaderCounts();
+    updateGraphStats();
+
+  } catch(err) {
+    console.error('fetchAndRender:', err);
+  }
+  setLoading(false);
+  renderLayers();
+
+  if (ST.violation) fetchViolations();
+}
+
+// ── Fetch full-graph metrics for selected subgraph ───────────────
+async function fetchGraphMetrics(graphType) {
+  try {
+    var r    = await fetch(API + '/graphs/' + GRAPH_ID + '/graph_metrics/' + graphType);
+    var data = await r.json();
+
+    fullGraphSrcDeg  = data.src_degrees;
+    fullGraphTgtDeg  = data.tgt_degrees;
+    fullGraphLengths = data.lengths;
+
+    // Slider/chart domain bounds — padded 5% on each side (linear: additive, log: multiplicative).
+    // Both min and max are returned so slider.min and chart left edge agree exactly.
+    function _degBounds(arr, logMode) {
+      if (!arr || !arr.length) return { min: 0, max: logMode ? 30 : 30 };
+      var hi = d3.max(arr), lo = d3.min(arr);
+      if (logMode) {
+        var lPad = Math.max(0.15, 0.05 * (Math.log(Math.max(1, hi)) - Math.log(Math.max(1, lo))));
+        return { min: Math.max(1, Math.exp(Math.log(Math.max(1, lo)) - lPad)),
+                 max: Math.exp(Math.log(Math.max(1, hi)) + lPad) };
+      }
+      var pad = Math.max(1, Math.round(0.05 * (hi - lo)));
+      return { min: Math.max(0, lo - pad), max: hi + pad };
+    }
+    var srcB = _degBounds(fullGraphSrcDeg, ST.srcDegLogScaleX);
+    ST.srcDegMin = srcB.min; ST.srcDegMax = srcB.max;
+    var tgtB = _degBounds(fullGraphTgtDeg, ST.tgtDegLogScaleX);
+    ST.tgtDegMin = tgtB.min; ST.tgtDegMax = tgtB.max;
+    ST.lenSliderMax = (function(arr, fb) {
+      if (!arr || !arr.length) return fb;
+      var hi = d3.max(arr), lo = d3.min(arr);
+      return hi + Math.max(1, Math.round(0.05 * (hi - lo)));
+    })(fullGraphLengths, 600);
+
+    // If sliders are currently in log mode, convert new max/value to log space
+    function _applySliderMode(minSl, maxSl, sliderMin, sliderMax, lo, hi, logOn) {
+      if (logOn) {
+        var logMin = Math.log(Math.max(1, sliderMin)), logMax = Math.log(Math.max(1, sliderMax));
+        minSl.min = logMin.toFixed(4); minSl.max = logMax.toFixed(4); minSl.step = '0.01';
+        maxSl.min = logMin.toFixed(4); maxSl.max = logMax.toFixed(4); maxSl.step = '0.01';
+        minSl.value = Math.log(Math.max(1, lo)).toFixed(4);
+        maxSl.value = Math.log(Math.max(1, hi)).toFixed(4);
+      } else {
+        minSl.min = String(sliderMin); minSl.max = sliderMax; minSl.step = '1';
+        maxSl.min = String(sliderMin); maxSl.max = sliderMax; maxSl.step = '1';
+        minSl.value = lo; maxSl.value = hi;
+      }
+    }
+
+    // Src degree defaults from API (based on src_deg mean ± 2σ)
+    var srcLo = Math.max(0, Math.min(ST.srcDegMax, Math.floor(data.degree_lo)));
+    var srcHi = Math.max(0, Math.min(ST.srcDegMax, Math.ceil(data.degree_hi)));
+    // Tgt degree defaults computed client-side from tgt distribution
+    var tgtBounds = _twoStdBounds(fullGraphTgtDeg);
+    var tgtLo = Math.max(0, Math.min(ST.tgtDegMax, Math.floor(tgtBounds[0])));
+    var tgtHi = Math.max(0, Math.min(ST.tgtDegMax, Math.ceil(tgtBounds[1])));
+    var lenLo = Math.max(0, Math.min(ST.lenSliderMax, Math.floor(data.length_lo)));
+    var lenHi = Math.max(0, Math.min(ST.lenSliderMax, Math.ceil(data.length_hi)));
+
+    _applySliderMode(srcDegMinSl, srcDegMaxSl, ST.srcDegMin, ST.srcDegMax, srcLo, srcHi, ST.srcDegLogScaleX);
+    _applySliderMode(tgtDegMinSl, tgtDegMaxSl, ST.tgtDegMin, ST.tgtDegMax, tgtLo, tgtHi, ST.tgtDegLogScaleX);
+    lenMinSl.max = ST.lenSliderMax; lenMaxSl.max = ST.lenSliderMax;
+    lenMinSl.value = lenLo; lenMaxSl.value = lenHi;
+
+    updateSrcDegSliders(false); updateTgtDegSliders(false); updateLenSliders(false);
+    buildViolationHistograms();
+    // Re-fetch violations with the now-correct fitted thresholds.
+    // fetchAndRender may have already called fetchViolations() with stale default
+    // slider values before this response arrived; this corrects that.
+    if (ST.violation) fetchViolations();
+  } catch(err) {
+    console.warn('fetchGraphMetrics failed (backend offline?):', err);
+  }
+}
+
+// ── Switch active subgraph in violation panel ────────────────────
+function setViolGraphType(type) {
+  ST.violGraphType = type;
+  document.querySelectorAll('.gt-tab').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.type === type);
+  });
+  // Show only the edge type relevant to this subgraph (data is always fetched regardless)
+  ST.showG2M = type === 'g2m';
+  ST.showM2M = type === 'm2m';
+  ST.showM2G = type === 'm2g';
+  updatePill('pe-g2m', ST.showG2M);
+  updatePill('pe-m2m', ST.showM2M);
+  updatePill('pe-m2g', ST.showM2G);
+  renderLayers();
+  prevBbox = null;
+  scheduleFetch();
+  fetchGraphMetrics(type);
+}
+
+
+// ── Fetch violations for current subgraph + viewport ────────────
+async function fetchViolations() {
+  violGen++;
+  var myGen = violGen;
+  var bbox   = prevBbox || getBbox();
+  var srcDeg = getSrcDegThresholds();
+  var tgtDeg = getTgtDegThresholds();
+  var len    = getLenThresholds();
+
+  var params = new URLSearchParams({
+    min_lat: bbox.min_lat, max_lat: bbox.max_lat,
+    min_lon: bbox.min_lon, max_lon: bbox.max_lon,
+    src_degree_lo: srcDeg.lo, src_degree_hi: srcDeg.hi,
+    tgt_degree_lo: tgtDeg.lo, tgt_degree_hi: tgtDeg.hi,
+    length_lo: len.lo, length_hi: len.hi,
+  }).toString();
+
+  // Parallel: viewport-filtered violations + full-graph totals (no bbox)
+  var totalParams = new URLSearchParams({
+    src_degree_lo: srcDeg.lo, src_degree_hi: srcDeg.hi,
+    tgt_degree_lo: tgtDeg.lo, tgt_degree_hi: tgtDeg.hi,
+    length_lo: len.lo, length_hi: len.hi,
+  }).toString();
+
+  try {
+    var [r, rTotal] = await Promise.all([
+      fetch(API + '/graphs/' + GRAPH_ID + '/violations/' + ST.violGraphType + '?' + params),
+      fetch(API + '/graphs/' + GRAPH_ID + '/violations/' + ST.violGraphType + '?' + totalParams),
+    ]);
+    var result      = await r.json();
+    var resultTotal = await rTotal.json();
+
+    // Clear all lo/hi sets
+    violGridIds_lo.clear(); violGridIds_hi.clear();
+    violMeshIds_lo.clear(); violMeshIds_hi.clear();
+    violEdgeKeys_lo.clear(); violEdgeKeys_hi.clear();
+
+    // Populate lo/hi sets by graph type (src = grid for g2m, mesh for m2m/m2g)
+    if (ST.violGraphType === 'g2m') {
+      result.src_ids_lo.forEach(function(id) { violGridIds_lo.add(id); });
+      result.src_ids_hi.forEach(function(id) { violGridIds_hi.add(id); });
+      result.tgt_ids_lo.forEach(function(id) { violMeshIds_lo.add(id); });
+      result.tgt_ids_hi.forEach(function(id) { violMeshIds_hi.add(id); });
+    } else if (ST.violGraphType === 'm2g') {
+      result.src_ids_lo.forEach(function(id) { violMeshIds_lo.add(id); });
+      result.src_ids_hi.forEach(function(id) { violMeshIds_hi.add(id); });
+      result.tgt_ids_lo.forEach(function(id) { violGridIds_lo.add(id); });
+      result.tgt_ids_hi.forEach(function(id) { violGridIds_hi.add(id); });
+    } else { // m2m — both sides are mesh
+      result.src_ids_lo.forEach(function(id) { violMeshIds_lo.add(id); });
+      result.src_ids_hi.forEach(function(id) { violMeshIds_hi.add(id); });
+      result.tgt_ids_lo.forEach(function(id) { violMeshIds_lo.add(id); });
+      result.tgt_ids_hi.forEach(function(id) { violMeshIds_hi.add(id); });
+    }
+    result.edges_lo.forEach(function(e) { violEdgeKeys_lo.add(e.source + ':' + e.target); });
+    result.edges_hi.forEach(function(e) { violEdgeKeys_hi.add(e.source + ':' + e.target); });
+
+    // Rebuild combined sets (used for fast "is violation?" checks in tooltip/info panel)
+    violGridIds  = new Set([...violGridIds_lo,  ...violGridIds_hi]);
+    violMeshIds  = new Set([...violMeshIds_lo,  ...violMeshIds_hi]);
+    violEdgeKeys = new Set([...violEdgeKeys_lo, ...violEdgeKeys_hi]);
+
+    // Full-graph totals (no bbox) — shown in violation count lines
+    if (ST.violGraphType === 'g2m') {
+      violTotals.gridLo = resultTotal.src_ids_lo.length; violTotals.gridHi = resultTotal.src_ids_hi.length;
+      violTotals.meshLo = resultTotal.tgt_ids_lo.length; violTotals.meshHi = resultTotal.tgt_ids_hi.length;
+    } else if (ST.violGraphType === 'm2g') {
+      violTotals.meshLo = resultTotal.src_ids_lo.length; violTotals.meshHi = resultTotal.src_ids_hi.length;
+      violTotals.gridLo = resultTotal.tgt_ids_lo.length; violTotals.gridHi = resultTotal.tgt_ids_hi.length;
+    } else {
+      violTotals.meshLo = new Set([...resultTotal.src_ids_lo, ...resultTotal.tgt_ids_lo]).size;
+      violTotals.meshHi = new Set([...resultTotal.src_ids_hi, ...resultTotal.tgt_ids_hi]).size;
+      violTotals.gridLo = 0; violTotals.gridHi = 0;
+    }
+    violTotals.edgeLo = resultTotal.edges_lo.length;
+    violTotals.edgeHi = resultTotal.edges_hi.length;
+
+    if (violGen !== myGen) return; // newer fetchViolations started while awaiting — discard
+    updateViolationStats();
+    buildViolationHistograms();
+
+  } catch(err) {
+    console.error('fetchViolations:', err);
+    renderLayers(); // sets may be partially populated — render whatever we have
+    return;
+  }
+  renderLayers();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MINI-MAP
+// ═══════════════════════════════════════════════════════════════
+var miniMap = L.map('minimap-map', {
+  center: [20, 0], zoom: 2,
+  zoomControl: false, attributionControl: false,
+  dragging: false, touchZoom: false, scrollWheelZoom: false,
+  doubleClickZoom: false, boxZoom: false, keyboard: false,
+});
+var activeMiniTileLayer = L.tileLayer(MAP_TYPES.map.url, Object.assign({}, MAP_TYPES.map.opts)).addTo(miniMap);
+var viewRect = L.rectangle(leafMap.getBounds(), {
+  color: '#FFB000', weight: 2, fillColor: '#FFB000', fillOpacity: 0.10, interactive: false,
+}).addTo(miniMap);
+function updateMinimap() { viewRect.setBounds(leafMap.getBounds()); }
+leafMap.on('move zoom moveend zoomend', updateMinimap);
+
+// ═══════════════════════════════════════════════════════════════
+// INTERACTION — Leaflet events + deck.gl GPU picking
+// ═══════════════════════════════════════════════════════════════
+var tip = document.getElementById('tip');
+
+function _onNodeHover(info) {
+  if (info.object) {
+    var r = mw.getBoundingClientRect();
+    showNodeTooltip(r.left + info.x, r.top + info.y, info.object);
+    mw.style.cursor = 'pointer';
+  } else {
+    tip.style.display = 'none';
+    mw.style.cursor = '';
+  }
+}
+function _onNodeClick(info) {
+  if (info.object) {
+    ST.selected = (ST.selected && ST.selected.id === info.object.id) ? null : info.object;
+    updateInfoPanel();
+    renderLayers();
+  }
+}
+
+// Forward Leaflet mouse events to deck.gl pick engine
+leafMap.on('click', function(e) {
+  var info = _deck && _deck.pickObject({ x: e.containerPoint.x, y: e.containerPoint.y, radius: 5 });
+  if (info && info.object) {
+    _onNodeClick(info);
+  } else {
+    ST.selected = null; updateInfoPanel(); renderLayers();
+  }
+});
+leafMap.on('mousemove', function(e) {
+  var info = _deck && _deck.pickObject({ x: e.containerPoint.x, y: e.containerPoint.y, radius: 5 });
+  _onNodeHover({ object: info ? info.object : null, x: e.containerPoint.x, y: e.containerPoint.y });
+});
+leafMap.on('mouseout', function() { tip.style.display = 'none'; mw.style.cursor = ''; });
+
+leafMap.on('moveend zoomend', scheduleFetch);
+
+function placeTip(cx, cy) {
+  var r = mw.getBoundingClientRect();
+  var tx = cx - r.left + 14, ty = cy - r.top + 14;
+  if (tx + 210 > mw.clientWidth)  tx = cx - r.left - 220;
+  if (ty + 140 > mw.clientHeight) ty = cy - r.top  - 150;
+  tip.style.left = tx + 'px'; tip.style.top = ty + 'px'; tip.style.display = 'block';
+}
+
+function showNodeTooltip(cx, cy, n) {
+  var deg = computeDegrees()[n.id] || 0;
+  var viol = ST.violation && (n.type === 'grid' ? violGridIds.has(n.id) : violMeshIds.has(n.id));
+  document.getElementById('tip-title').textContent = (n.type === 'grid' ? 'Grid' : 'Mesh') + ' Node ' + n.id;
+  document.getElementById('tip-title').style.color = n.type === 'grid' ? '#FE6100' : '#648FFF';
+  document.getElementById('tip-body').innerHTML =
+    '<div class="tip-row"><span>Position</span><span class="tip-val">' + n.lat.toFixed(2) + '°N, ' + n.lon.toFixed(2) + '°E</span></div>' +
+    '<div class="tip-row"><span>Viewport degree</span><span class="tip-val">' + deg + '</span></div>' +
+    (viol ? '<div class="tip-row"><span style="color:var(--red)">⚠ Violation</span></div>' : '');
+  placeTip(cx, cy);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INFO & STATS PANELS
+// ═══════════════════════════════════════════════════════════════
+function updateInfoPanel() {
+  var titleEl = document.getElementById('info-title');
+  var subEl   = document.getElementById('info-sub');
+  var detSec  = document.getElementById('info-details');
+  if (!ST.selected) {
+    titleEl.textContent = 'Element Info'; subEl.textContent = 'Click a node to inspect';
+    detSec.style.display = 'none'; return;
+  }
+  var n = ST.selected, deg = computeDegrees()[n.id] || 0;
+  titleEl.textContent = n.type === 'grid' ? 'Grid Node' : 'Mesh Node';
+  subEl.textContent   = 'ID: ' + n.id;
+  detSec.style.display = 'block';
+  detSec.innerHTML =
+    '<div class="det-row"><span class="dk">ID</span><span class="dv">' + n.id + '</span></div>' +
+    '<div class="det-row"><span class="dk">Type</span><span class="dv">' + n.type + '</span></div>' +
+    '<div class="det-row"><span class="dk">Lat / Lon</span><span class="dv">' + n.lat.toFixed(3) + '°, ' + n.lon.toFixed(3) + '°</span></div>' +
+    '<div class="det-row"><span class="dk">Viewport degree</span><span class="dv">' + deg + '</span></div>';
+}
+
+function updateGraphStats() {
+  document.getElementById('stats-grid').innerHTML =
+    '<div class="sbox"><div class="sn sn-grid">' + gridNodes.length + '</div><div class="sl">Grid nodes</div></div>' +
+    '<div class="sbox"><div class="sn sn-mesh">' + meshNodes.length + '</div><div class="sl">Mesh nodes</div></div>' +
+    '<div class="sbox"><div class="sn sn-g2m">'  + g2mEdges.length  + '</div><div class="sl">G2M edges</div></div>' +
+    '<div class="sbox"><div class="sn sn-mesh">'  + m2mEdges.length  + '</div><div class="sl">M2M edges</div></div>' +
+    '<div class="sbox"><div class="sn sn-m2g">'  + m2gEdges.length  + '</div><div class="sl">M2G edges</div></div>';
+}
+
+function updateHeaderCounts() {
+  var n = gridNodes.length + meshNodes.length;
+  var e = g2mEdges.length + m2mEdges.length + m2gEdges.length;
+  document.getElementById('hdr-node-count').textContent = n.toLocaleString() + ' in view';
+  document.getElementById('hdr-edge-count').textContent = e.toLocaleString() + ' in view';
+}
+
+// shape: 'square' for grid nodes, 'circle' for mesh nodes, '' for edges
+function _shapeIcon(shape) {
+  if (shape === 'square')
+    return '<svg width="9" height="9" style="flex-shrink:0;margin-right:1px" viewBox="0 0 9 9">' +
+           '<rect x="0.5" y="0.5" width="8" height="8" fill="#e5e7eb" stroke="#1e293b" stroke-width="1"/></svg>';
+  if (shape === 'circle')
+    return '<svg width="9" height="9" style="flex-shrink:0;margin-right:1px" viewBox="0 0 9 9">' +
+           '<circle cx="4.5" cy="4.5" r="4" fill="#e5e7eb" stroke="#1e293b" stroke-width="1"/></svg>';
+  return '';
+}
+
+function _violLine(color, label, n, N, shape) {
+  var ratio = N > 0 ? (' <span style="color:var(--text-dim);font-weight:400">/ ' + N + '</span>') : '';
+  return '<div class="viol-line">' +
+    '<span class="vl-dot" style="background:' + color + '"></span>' +
+    '<span class="vl-n" style="color:' + color + '">' + n + '</span>' + ratio +
+    '<span class="vl-label">' + label + _shapeIcon(shape) + '</span>' +
+    '</div>';
+}
+
+function updateViolationStats() {
+  var nodes = GRAPH_TYPE_NODES[ST.violGraphType] || [];
+
+  // Src violation lines (always shown — first entry in GRAPH_TYPE_NODES)
+  if (nodes[0]) {
+    var d = nodes[0];
+    var lo = d.set === 'grid' ? violTotals.gridLo : violTotals.meshLo;
+    var hi = d.set === 'grid' ? violTotals.gridHi : violTotals.meshHi;
+    var N  = d.set === 'grid' ? graphMeta.n_grid  : graphMeta.n_mesh;
+    var sh = d.set === 'grid' ? 'square' : 'circle';
+    document.getElementById('src-deg-violation-count').innerHTML =
+      _violLine(VIOL_LO, 'under threshold', lo, N, sh) +
+      _violLine(VIOL_HI, 'over threshold',  hi, N, sh);
+  }
+
+  // Tgt violation lines (second entry; absent for M2M)
+  var tgtEl = document.getElementById('tgt-deg-violation-count');
+  if (tgtEl) {
+    if (nodes[1]) {
+      var d2 = nodes[1];
+      var lo2 = d2.set === 'grid' ? violTotals.gridLo : violTotals.meshLo;
+      var hi2 = d2.set === 'grid' ? violTotals.gridHi : violTotals.meshHi;
+      var N2  = d2.set === 'grid' ? graphMeta.n_grid  : graphMeta.n_mesh;
+      var sh2 = d2.set === 'grid' ? 'square' : 'circle';
+      tgtEl.innerHTML =
+        _violLine(VIOL_LO, 'under threshold', lo2, N2, sh2) +
+        _violLine(VIOL_HI, 'over threshold',  hi2, N2, sh2);
+    } else {
+      tgtEl.innerHTML = '';
+    }
+  }
+
+  // Edge length lines
+  document.getElementById('len-violation-count').innerHTML =
+    _violLine(VIOL_LO, 'under threshold edges', violTotals.edgeLo, 0, '') +
+    _violLine(VIOL_HI, 'over threshold edges',  violTotals.edgeHi, 0, '');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VIOLATION PLOTS (D3) — built from loaded viewport data
+// ═══════════════════════════════════════════════════════════════
+
+// Lollipop frequency plot for integer-valued data (node degrees).
+// One vertical stick + dot per unique integer value — no bins, no ambiguity.
+// Color is exact: value < threshLo → blue, value > threshHi → red, else grey.
+function buildDegreeFreqPlot(containerId, data, domainMax, threshLo, threshHi, logScaleX, logScaleY, xMinDomain) {
+  var container = document.getElementById(containerId); container.innerHTML = '';
+  if (!data || !data.length) return;
+  var W = 240, H = 70, mg = { top: 4, right: 8, bottom: 18, left: 28 };
+  var w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+  var svg = d3.select(container).append('svg').attr('viewBox', '0 0 ' + W + ' ' + H);
+  var g   = svg.append('g').attr('transform', 'translate(' + mg.left + ',' + mg.top + ')');
+
+  // Count unique integer values
+  var counts = {};
+  data.forEach(function(v) { counts[v] = (counts[v] || 0) + 1; });
+  var entries = Object.keys(counts).map(function(k) { return { v: +k, n: counts[k] }; });
+  entries.sort(function(a, b) { return a.v - b.v; });
+
+  var xMax = domainMax || (d3.max(entries, function(d) { return d.v; }) + 1);
+  var yMax = d3.max(entries, function(d) { return d.n; }) || 1;
+
+  // x domain: padding is baked into domainMax and xMinDomain by the caller (ST.srcDegMin/Max),
+  // so the slider and chart always share the same boundaries — ensuring alignment.
+  var xMin0 = (xMinDomain !== undefined) ? xMinDomain : (logScaleX ? 1 : 0);
+
+  var x = logScaleX
+    ? d3.scaleLog().domain([xMin0, xMax]).range([0, w]).clamp(true)
+    : d3.scaleLinear().domain([xMin0, xMax]).range([0, w]);
+  var y = logScaleY
+    ? d3.scaleLog().domain([1, Math.max(1, yMax)]).range([h, 0]).clamp(true)
+    : d3.scaleLinear().domain([0, yMax]).range([h, 0]);
+
+  function nodeColor(v) {
+    if (threshLo == null) return '#9ca3af';
+    if (v <= threshLo) return VIOL_LO;
+    if (v >= threshHi) return VIOL_HI;
+    return VIOL_GREY;
+  }
+
+  // Sticks — y1 always at chart bottom (h), safe for log scale (avoids log(0))
+  g.selectAll('line.lp').data(entries).join('line')
+    .attr('class', 'lp')
+    .attr('x1', function(d) { return x(d.v); }).attr('x2', function(d) { return x(d.v); })
+    .attr('y1', h).attr('y2', function(d) { return y(Math.max(1, d.n)); })
+    .attr('stroke', function(d) { return nodeColor(d.v); })
+    .attr('stroke-width', 1.5).attr('opacity', 0.8);
+
+  // Dots — hollow open circles
+  g.selectAll('circle.lp').data(entries).join('circle')
+    .attr('class', 'lp')
+    .attr('cx', function(d) { return x(d.v); })
+    .attr('cy', function(d) { return y(Math.max(1, d.n)); })
+    .attr('r', 2.5)
+    .attr('fill', 'white')
+    .attr('stroke', function(d) { return nodeColor(d.v); })
+    .attr('stroke-width', 1.2)
+    .attr('opacity', 0.9);
+
+  // Threshold lines
+  if (threshLo != null) {
+    var xLo = x(Math.max(xMin0, threshLo));
+    var xHi = x(Math.max(xMin0, threshHi));
+    g.append('line').attr('x1', xLo).attr('x2', xLo).attr('y1', 0).attr('y2', h)
+      .attr('stroke', VIOL_LO).attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2').attr('opacity', 0.9);
+    g.append('line').attr('x1', xHi).attr('x2', xHi).attr('y1', 0).attr('y2', h)
+      .attr('stroke', VIOL_HI).attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2').attr('opacity', 0.9);
+  }
+
+  var axisX = logScaleX ? d3.axisBottom(x).ticks(5, 'd') : d3.axisBottom(x).ticks(5);
+  var axisY = logScaleY ? d3.axisLeft(y).ticks(3, 's') : d3.axisLeft(y).ticks(3, 's');
+  g.append('g').attr('transform', 'translate(0,' + h + ')').call(axisX.tickSize(3))
+    .selectAll('text').attr('font-size', '8px').attr('fill', '#94a3b8');
+  g.append('g').call(axisY.tickSize(3))
+    .selectAll('text').attr('font-size', '8px').attr('fill', '#94a3b8');
+  g.selectAll('.domain').attr('stroke', '#e2e8f0');
+  g.selectAll('.tick line').attr('stroke', '#e2e8f0');
+}
+
+// Histogram for continuous data (edge lengths).
+// numBins: bin count (from the binning input)
+// threshLo/Hi: threshold data values — used for bar coloring AND line position via x(thresh)
+// logScale: if true, x-axis uses d3.scaleLog (domain starts at 1)
+function buildHistogram(containerId, data, domainMax, color, threshLo, threshHi, numBins, logScaleX, logScaleY) {
+  var logScale = logScaleX; // alias for existing x-scale logic below
+  var container = document.getElementById(containerId); container.innerHTML = '';
+  if (!data.length) return;
+  var W = 240, H = 70, mg = { top: 4, right: 8, bottom: 18, left: 28 };
+  var w = W - mg.left - mg.right, h = H - mg.top - mg.bottom;
+  var svg = d3.select(container).append('svg').attr('viewBox', '0 0 ' + W + ' ' + H);
+  var g   = svg.append('g').attr('transform', 'translate(' + mg.left + ',' + mg.top + ')');
+  var xMax = domainMax || (d3.max(data) + 1);
+  var nBins = Math.max(2, numBins || 15);
+  var x, threshArray, binDomain;
+  if (logScale) {
+    // xMin must be 1 (= exp(0)) so the log domain starts at the same origin as the slider's log range [0, ln(xMax)].
+    var xMin = 1;
+    x = d3.scaleLog().domain([xMin, xMax]).range([0, w]).clamp(true);
+    // Build exactly nBins log-spaced thresholds (same approach as linear mode's explicit array).
+    // x.ticks(nBins) is only a hint and snaps to power-of-10 values, ignoring the actual count.
+    threshArray = Array.from({length: nBins - 1}, function(_, i) {
+      return Math.exp(Math.log(xMax) * (i + 1) / nBins);
+    });
+    binDomain = [xMin, xMax];
+  } else {
+    x = d3.scaleLinear().domain([0, xMax]).range([0, w]);
+    // Exact bin count: build explicit threshold array so d3 doesn't snap to "nice" values.
+    threshArray = Array.from({length: nBins - 1}, function(_, i) { return (i + 1) * xMax / nBins; });
+    binDomain = [0, xMax];
+  }
+  var bins = d3.bin().domain(binDomain).thresholds(threshArray)(data);
+  var yMax = d3.max(bins, function(d) { return d.length; }) || 1;
+  var y = logScaleY
+    ? d3.scaleLog().domain([1, Math.max(1, yMax)]).range([h, 0]).clamp(true)
+    : d3.scaleLinear().domain([0, yMax]).range([h, 0]);
+  g.selectAll('rect').data(bins).join('rect')
+    .attr('x', function(d) { return x(Math.max(binDomain[0], d.x0)) + 0.5; })
+    .attr('y', function(d) { return y(Math.max(logScaleY ? 1 : 0, d.length)); })
+    .attr('width', function(d) { return Math.max(0, x(Math.max(binDomain[0], d.x1)) - x(Math.max(binDomain[0], d.x0)) - 1); })
+    .attr('height', function(d) { return h - y(Math.max(logScaleY ? 1 : 0, d.length)); })
+    .attr('fill', function(d) {
+      if (threshLo == null) return color;
+      var mid = (d.x0 + d.x1) / 2;
+      if (mid <= threshLo) return VIOL_LO;
+      if (mid >= threshHi) return VIOL_HI;
+      return VIOL_GREY;  // in-range bars: same dark grey as non-violating nodes/edges
+    })
+    .attr('opacity', 0.75).attr('rx', 1);
+  // Threshold marker lines — always derive position from x(thresh) via D3 scale.
+  // This is the only approach that correctly aligns lines with axis ticks in both linear and log modes.
+  if (threshLo != null) {
+    var xLo = x(Math.max(binDomain[0], threshLo));
+    var xHi = x(Math.max(binDomain[0], threshHi));
+    g.append('line').attr('x1', xLo).attr('x2', xLo).attr('y1', 0).attr('y2', h)
+      .attr('stroke', VIOL_LO).attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2').attr('opacity', 0.9);
+    g.append('line').attr('x1', xHi).attr('x2', xHi).attr('y1', 0).attr('y2', h)
+      .attr('stroke', VIOL_HI).attr('stroke-width', 1.5).attr('stroke-dasharray', '3,2').attr('opacity', 0.9);
+  }
+  var axisX = logScale ? d3.axisBottom(x).ticks(5, 'd') : d3.axisBottom(x).ticks(5);
+  g.append('g').attr('transform', 'translate(0,' + h + ')').call(axisX.tickSize(3))
+    .selectAll('text').attr('font-size', '8px').attr('fill', '#94a3b8');
+  g.append('g').call(d3.axisLeft(y).ticks(3).tickSize(3))
+    .selectAll('text').attr('font-size', '8px').attr('fill', '#94a3b8');
+  g.selectAll('.domain').attr('stroke', '#e2e8f0');
+  g.selectAll('.tick line').attr('stroke', '#e2e8f0');
+}
+
+function buildViolationHistograms() {
+  var lenBins = parseInt(document.getElementById('len-bins').value) || 15;
+
+  // ── Degree histograms (src + tgt, decoupled) ──────────────────────────
+  // G2M: src=grid nodes, tgt=mesh nodes
+  // M2M: src=mesh, tgt=mesh (same node type — show src only)
+  // M2G: src=mesh nodes, tgt=grid nodes
+  var gt = ST.violGraphType;
+  var srcType = (gt === 'g2m') ? 'grid' : 'mesh';
+  var tgtType = (gt === 'm2g') ? 'grid' : 'mesh';
+  var showSrc = (srcType === 'grid') ? ST.showGrid : ST.showMesh;
+  var showTgt = (gt !== 'm2m') && ((tgtType === 'grid') ? ST.showGrid : ST.showMesh);
+
+  var srcWrap = document.getElementById('deg-hist-src-wrap');
+  var tgtWrap = document.getElementById('deg-hist-tgt-wrap');
+  if (srcWrap) srcWrap.style.display = showSrc ? '' : 'none';
+  if (tgtWrap) tgtWrap.style.display = showTgt ? '' : 'none';
+
+  // Update sub-labels to reflect current graph type
+  var srcLblEl = document.getElementById('deg-hist-src-label');
+  var tgtLblEl = document.getElementById('deg-hist-tgt-label');
+  if (srcLblEl) srcLblEl.textContent = (srcType === 'grid' ? 'Grid' : 'Mesh') + ' nodes (src)';
+  if (tgtLblEl) tgtLblEl.textContent = (tgtType === 'grid' ? 'Grid' : 'Mesh') + ' nodes (tgt)';
+
+  if (showSrc) {
+    var srcDeg = getSrcDegThresholds();
+    buildDegreeFreqPlot('viol-degree-hist-src', fullGraphSrcDeg, ST.srcDegMax || 30,
+      srcDeg.lo, srcDeg.hi, ST.srcDegLogScaleX, ST.srcDegLogScaleY, ST.srcDegMin || 0);
+  }
+  if (showTgt) {
+    var tgtDeg = getTgtDegThresholds();
+    buildDegreeFreqPlot('viol-degree-hist-tgt', fullGraphTgtDeg, ST.tgtDegMax || 30,
+      tgtDeg.lo, tgtDeg.hi, ST.tgtDegLogScaleX, ST.tgtDegLogScaleY, ST.tgtDegMin || 0);
+  }
+
+  // ── Edge length histogram ──────────────────────────────────────────────
+  var lenT   = getLenThresholds();
+  var lenMax = ST.lenSliderMax || 600;
+  buildHistogram('viol-edge-hist', fullGraphLengths, lenMax, '#9ca3af',
+    lenT.lo, lenT.hi, lenBins, ST.lenLogScaleX, ST.lenLogScaleY);
+}
+
+// ── Log scale toggles for histograms ────────────────────────────
+
+// Global padding helper — returns {min, max} slider/chart domain for the given mode.
+// Log mode uses multiplicative (log-space) padding; linear uses additive padding.
+function _degBoundsGlobal(arr, logMode) {
+  if (!arr || !arr.length) return { min: 0, max: 30 };
+  var hi = d3.max(arr), lo = d3.min(arr);
+  if (logMode) {
+    var lPad = Math.max(0.15, 0.05 * (Math.log(Math.max(1, hi)) - Math.log(Math.max(1, lo))));
+    return { min: Math.max(1, Math.exp(Math.log(Math.max(1, lo)) - lPad)),
+             max: Math.exp(Math.log(Math.max(1, hi)) + lPad) };
+  }
+  var pad = Math.max(1, Math.round(0.05 * (hi - lo)));
+  return { min: Math.max(0, lo - pad), max: hi + pad };
+}
+
+function _setDegSliderMode(minSl, maxSl, sliderMin, sliderMax, lo, hi, logOn) {
+  if (logOn) {
+    var logMin = Math.log(Math.max(1, sliderMin)), logMax = Math.log(Math.max(1, sliderMax));
+    minSl.min = logMin.toFixed(4); minSl.max = logMax.toFixed(4); minSl.step = '0.01';
+    maxSl.min = logMin.toFixed(4); maxSl.max = logMax.toFixed(4); maxSl.step = '0.01';
+    minSl.value = Math.log(Math.max(1, lo)).toFixed(4);
+    maxSl.value = Math.log(Math.max(1, hi)).toFixed(4);
+  } else {
+    minSl.min = String(sliderMin); minSl.max = sliderMax; minSl.step = '1';
+    maxSl.min = String(sliderMin); maxSl.max = sliderMax; maxSl.step = '1';
+    minSl.value = lo; maxSl.value = hi;
+  }
+}
+function toggleSrcDegLogScaleX() {
+  var prev = getSrcDegThresholds();
+  ST.srcDegLogScaleX = !ST.srcDegLogScaleX;
+  var b = _degBoundsGlobal(fullGraphSrcDeg, ST.srcDegLogScaleX);
+  ST.srcDegMin = b.min; ST.srcDegMax = b.max;
+  var btn = document.getElementById('src-deg-logx-btn');
+  if (btn) btn.classList.toggle('active', ST.srcDegLogScaleX);
+  _setDegSliderMode(srcDegMinSl, srcDegMaxSl, ST.srcDegMin, ST.srcDegMax, prev.lo, prev.hi, ST.srcDegLogScaleX);
+  updateSrcDegSliders(false);
+}
+function toggleSrcDegLogScaleY() {
+  ST.srcDegLogScaleY = !ST.srcDegLogScaleY;
+  var btn = document.getElementById('src-deg-logy-btn');
+  if (btn) btn.classList.toggle('active', ST.srcDegLogScaleY);
+  buildViolationHistograms();
+}
+function toggleTgtDegLogScaleX() {
+  var prev = getTgtDegThresholds();
+  ST.tgtDegLogScaleX = !ST.tgtDegLogScaleX;
+  var b = _degBoundsGlobal(fullGraphTgtDeg, ST.tgtDegLogScaleX);
+  ST.tgtDegMin = b.min; ST.tgtDegMax = b.max;
+  var btn = document.getElementById('tgt-deg-logx-btn');
+  if (btn) btn.classList.toggle('active', ST.tgtDegLogScaleX);
+  _setDegSliderMode(tgtDegMinSl, tgtDegMaxSl, ST.tgtDegMin, ST.tgtDegMax, prev.lo, prev.hi, ST.tgtDegLogScaleX);
+  updateTgtDegSliders(false);
+}
+function toggleTgtDegLogScaleY() {
+  ST.tgtDegLogScaleY = !ST.tgtDegLogScaleY;
+  var btn = document.getElementById('tgt-deg-logy-btn');
+  if (btn) btn.classList.toggle('active', ST.tgtDegLogScaleY);
+  buildViolationHistograms();
+}
+function toggleLenLogScaleX() {
+  var prevLen = getLenThresholds();
+  ST.lenLogScaleX = !ST.lenLogScaleX;
+  var btn = document.getElementById('len-logx-btn');
+  if (btn) btn.classList.toggle('active', ST.lenLogScaleX);
+  var maxV = ST.lenSliderMax || 600;
+  if (ST.lenLogScaleX) {
+    var logMax = Math.log(Math.max(1, maxV));
+    lenMinSl.min = '0'; lenMinSl.max = logMax.toFixed(4); lenMinSl.step = '0.001';
+    lenMaxSl.min = '0'; lenMaxSl.max = logMax.toFixed(4); lenMaxSl.step = '0.001';
+    lenMinSl.value = Math.log(Math.max(1, prevLen.lo)).toFixed(4);
+    lenMaxSl.value = Math.log(Math.max(1, prevLen.hi)).toFixed(4);
+  } else {
+    lenMinSl.min = '0'; lenMinSl.max = maxV; lenMinSl.step = '5';
+    lenMaxSl.min = '0'; lenMaxSl.max = maxV; lenMaxSl.step = '5';
+    lenMinSl.value = prevLen.lo; lenMaxSl.value = prevLen.hi;
+  }
+  updateLenSliders(false);
+}
+function toggleLenLogScaleY() {
+  ST.lenLogScaleY = !ST.lenLogScaleY;
+  var btn = document.getElementById('len-logy-btn');
+  if (btn) btn.classList.toggle('active', ST.lenLogScaleY);
+  buildViolationHistograms();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VIOLATION SLIDERS
+// ═══════════════════════════════════════════════════════════════
+var srcDegMinSl = document.getElementById('src-deg-min-sl');
+var srcDegMaxSl = document.getElementById('src-deg-max-sl');
+var tgtDegMinSl = document.getElementById('tgt-deg-min-sl');
+var tgtDegMaxSl = document.getElementById('tgt-deg-max-sl');
+var lenMinSl    = document.getElementById('len-min-sl');
+var lenMaxSl    = document.getElementById('len-max-sl');
+
+// Corrected thumb center as % of slider element width.
+// Browsers inset the thumb by thumbRadius on each side, so the center travels
+// from (r) to (W-r) — not 0 to W. Without this correction the label and SVG
+// line drift by ±thumbRadius: "more right on the right, more left on the left".
+// Compute the CSS % position of the thumb center, accounting for slider.min.
+// Reads slider.min from the element so callers don't need to pass it explicitly.
+function _thumbCenterPct(value, maxV, sliderEl) {
+  var minV = sliderEl ? (parseFloat(sliderEl.min) || 0) : 0;
+  var range = maxV - minV;
+  if (!range) return 0;
+  var W = sliderEl ? sliderEl.offsetWidth : 0;
+  if (!W) return ((value - minV) / range) * 100;
+  var r = 7; // half of 14px thumb
+  return (r + ((value - minV) / range) * (W - 2 * r)) / W * 100;
+}
+
+function _updateThumbLabel(id, pct, val) {
+  var el = document.getElementById(id);
+  if (el) { el.textContent = val; el.style.left = pct + '%'; }
+}
+
+function _updateTrackGradient(trackId, p1, p2) {
+  var el = document.getElementById(trackId);
+  if (!el) return;
+  // Blue left of lo thumb | grey between | red right of hi thumb
+  el.style.background = 'linear-gradient(to right,' +
+    VIOL_LO + ' 0%,' + VIOL_LO + ' ' + p1 + '%,' +
+    '#d1d5db ' + p1 + '%,' + '#d1d5db ' + p2 + '%,' +
+    VIOL_HI + ' ' + p2 + '%,' + VIOL_HI + ' 100%)';
+}
+
+// Read actual (linear-space) thresholds from the slider pair, accounting for log mode.
+// In log mode the slider values are ln(threshold); exp() recovers the threshold.
+function getSrcDegThresholds() {
+  if (ST.srcDegLogScaleX) {
+    return { lo: Math.round(Math.exp(parseFloat(srcDegMinSl.value))), hi: Math.round(Math.exp(parseFloat(srcDegMaxSl.value))) };
+  }
+  return { lo: parseInt(srcDegMinSl.value), hi: parseInt(srcDegMaxSl.value) };
+}
+function getTgtDegThresholds() {
+  if (ST.tgtDegLogScaleX) {
+    return { lo: Math.round(Math.exp(parseFloat(tgtDegMinSl.value))), hi: Math.round(Math.exp(parseFloat(tgtDegMaxSl.value))) };
+  }
+  return { lo: parseInt(tgtDegMinSl.value), hi: parseInt(tgtDegMaxSl.value) };
+}
+function getLenThresholds() {
+  if (ST.lenLogScaleX) {
+    return { lo: Math.round(Math.exp(parseFloat(lenMinSl.value))), hi: Math.round(Math.exp(parseFloat(lenMaxSl.value))) };
+  }
+  return { lo: parseFloat(lenMinSl.value), hi: parseFloat(lenMaxSl.value) };
+}
+
+// Internal: update track gradient + thumb labels for one degree slider pair.
+// In log mode: sliderMax is the log-space max (= ln(ST.srcDegMax));
+// pct is computed from the log slider value so it aligns with the log histogram axis.
+function _updateDegSliderPair(prefix, minSl, maxSl, sliderMax, logMode, triggerFetch) {
+  if (triggerFetch === undefined) triggerFetch = true;
+  var slVal, shVal, p1, p2, loLbl, hiLbl, loActual, hiActual;
+  if (logMode) {
+    slVal = parseFloat(minSl.value); shVal = parseFloat(maxSl.value);
+    // Snap to nearest integer in value-space (node degrees are always integers).
+    // Write the snapped log value back so the thumb physically locks to log(1), log(2), log(3), …
+    loActual = Math.max(1, Math.round(Math.exp(slVal)));
+    hiActual = Math.max(1, Math.round(Math.exp(shVal)));
+    slVal = Math.log(loActual); shVal = Math.log(hiActual);
+    if (slVal > shVal) { slVal = shVal; loActual = hiActual; }
+    minSl.value = slVal.toFixed(4); maxSl.value = shVal.toFixed(4);
+    p1 = _thumbCenterPct(slVal, sliderMax, minSl);
+    p2 = _thumbCenterPct(shVal, sliderMax, maxSl);
+    loLbl = 'log(' + loActual + ')'; hiLbl = 'log(' + hiActual + ')';
+  } else {
+    loActual = parseInt(minSl.value); hiActual = parseInt(maxSl.value);
+    if (loActual > hiActual) { loActual = hiActual; minSl.value = loActual; }
+    p1 = _thumbCenterPct(loActual, sliderMax, minSl);
+    p2 = _thumbCenterPct(hiActual, sliderMax, maxSl);
+    loLbl = loActual; hiLbl = hiActual;
+  }
+  document.getElementById(prefix + '-deg-min-lbl-bot').textContent = 'Min: ' + loActual;
+  document.getElementById(prefix + '-deg-max-lbl-bot').textContent = 'Max: ' + hiActual;
+  _updateTrackGradient(prefix + '-deg-track', p1, p2);
+  _updateThumbLabel(prefix + '-deg-lbl-min', p1, loLbl);
+  _updateThumbLabel(prefix + '-deg-lbl-max', p2, hiLbl);
+  if (triggerFetch && ST.violation) { fetchViolations(); } else buildViolationHistograms();
+}
+
+function updateSrcDegSliders(triggerFetch) {
+  if (triggerFetch === undefined) triggerFetch = true;
+  var slMax = ST.srcDegLogScaleX ? Math.log(Math.max(1, ST.srcDegMax || 30)) : (ST.srcDegMax || 30);
+  _updateDegSliderPair('src', srcDegMinSl, srcDegMaxSl, slMax, ST.srcDegLogScaleX, triggerFetch);
+}
+function updateTgtDegSliders(triggerFetch) {
+  if (triggerFetch === undefined) triggerFetch = true;
+  var slMax = ST.tgtDegLogScaleX ? Math.log(Math.max(1, ST.tgtDegMax || 30)) : (ST.tgtDegMax || 30);
+  _updateDegSliderPair('tgt', tgtDegMinSl, tgtDegMaxSl, slMax, ST.tgtDegLogScaleX, triggerFetch);
+}
+function updateLenSliders(triggerFetch) {
+  if (triggerFetch === undefined) triggerFetch = true;
+  var maxV = ST.lenSliderMax || 600;
+  var slMax = ST.lenLogScaleX ? Math.log(Math.max(1, maxV)) : maxV;
+  var lo, hi, slLo, slHi;
+  if (ST.lenLogScaleX) {
+    slLo = parseFloat(lenMinSl.value); slHi = parseFloat(lenMaxSl.value);
+    // Snap to nearest integer km (edge lengths are integer-valued).
+    lo = Math.max(1, Math.round(Math.exp(slLo)));
+    hi = Math.max(1, Math.round(Math.exp(slHi)));
+    slLo = Math.log(lo); slHi = Math.log(hi);
+    if (slLo > slHi) { slLo = slHi; lo = hi; }
+    lenMinSl.value = slLo.toFixed(4); lenMaxSl.value = slHi.toFixed(4);
+  } else {
+    lo = parseFloat(lenMinSl.value); hi = parseFloat(lenMaxSl.value);
+    if (lo > hi) { lo = hi; lenMinSl.value = lo; }
+    slLo = lo; slHi = hi;
+  }
+  document.getElementById('len-min-lbl-bot').textContent = 'Min: ' + lo + ' km';
+  document.getElementById('len-max-lbl-bot').textContent = 'Max: ' + hi + ' km';
+  var p1 = _thumbCenterPct(slLo, slMax, lenMinSl);
+  var p2 = _thumbCenterPct(slHi, slMax, lenMaxSl);
+  _updateTrackGradient('len-track', p1, p2);
+  _updateThumbLabel('len-lbl-min', p1, ST.lenLogScaleX ? 'log(' + lo + ')' : lo);
+  _updateThumbLabel('len-lbl-max', p2, ST.lenLogScaleX ? 'log(' + hi + ')' : hi);
+  if (triggerFetch && ST.violation) { fetchViolations(); } else buildViolationHistograms();
+}
+
+srcDegMinSl.addEventListener('input', updateSrcDegSliders);
+srcDegMaxSl.addEventListener('input', updateSrcDegSliders);
+tgtDegMinSl.addEventListener('input', updateTgtDegSliders);
+tgtDegMaxSl.addEventListener('input', updateTgtDegSliders);
+lenMinSl.addEventListener('input', updateLenSliders);
+lenMaxSl.addEventListener('input', updateLenSliders);
+document.getElementById('len-bins').addEventListener('input', buildViolationHistograms);
+
+// ═══════════════════════════════════════════════════════════════
+// VIOLATION TOGGLE
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('inspect-toggle').addEventListener('click', function() {
+  ST.violation = !ST.violation;
+  document.getElementById('sw-track').classList.toggle('on', ST.violation);
+  document.getElementById('pnl-graph').style.display = ST.violation ? 'none'  : 'block';
+  document.getElementById('pnl-viol').style.display  = ST.violation ? 'block' : 'none';
+  ST.selected = null;
+  updateInfoPanel();
+  if (ST.violation) {
+    setViolGraphType(ST.violGraphType);
+  } else {
+    violGridIds_lo.clear(); violGridIds_hi.clear();
+    violMeshIds_lo.clear(); violMeshIds_hi.clear();
+    violEdgeKeys_lo.clear(); violEdgeKeys_hi.clear();
+    violGridIds.clear(); violMeshIds.clear(); violEdgeKeys.clear();
+    renderLayers();
+    prevBbox = null;
+    scheduleFetch();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// LAYER TOGGLES
+// ═══════════════════════════════════════════════════════════════
+function toggleLayer(type) {
+  if (type === 'grid') {
+    ST.showGrid = !ST.showGrid; updatePill('pl-grid', ST.showGrid);
+  } else {
+    ST.showMesh = !ST.showMesh; updatePill('pl-mesh', ST.showMesh);
+  }
+  renderLayers();
+  if (ST.violation) buildViolationHistograms(); // update degree hist visibility
+}
+function toggleEdge(type) {
+  var map = { g2m: 'showG2M', m2m: 'showM2M', m2g: 'showM2G' };
+  if (!(type in map)) return;
+  ST[map[type]] = !ST[map[type]];
+  updatePill('pe-' + type, ST[map[type]]);
+  renderLayers();
+}
+function updatePill(id, on) {
+  var el = document.getElementById(id);
+  el.classList.toggle('on', on); el.classList.toggle('off', !on);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAP TYPE SWITCHER
+// ═══════════════════════════════════════════════════════════════
+function setMapType(type) {
+  if (type === currentMapType) return;
+  var cfg = MAP_TYPES[type];
+  leafMap.removeLayer(activeTileLayer);
+  activeTileLayer = L.tileLayer(cfg.url, Object.assign({ attribution: cfg.attr }, cfg.opts)).addTo(leafMap);
+  activeTileLayer.bringToBack();
+  miniMap.removeLayer(activeMiniTileLayer);
+  activeMiniTileLayer = L.tileLayer(cfg.url, Object.assign({}, cfg.opts)).addTo(miniMap);
+  activeMiniTileLayer.bringToBack();
+  document.querySelectorAll('#map .leaflet-tile-pane, #minimap-map .leaflet-tile-pane').forEach(function(pane) {
+    pane.style.filter = cfg.filter;
+  });
+  activeTileLayer.once('load', function() {
+    var pane = document.querySelector('#map .leaflet-tile-pane');
+    if (pane) pane.style.filter = cfg.filter;
+  });
+  document.querySelectorAll('.mt-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.type === type);
+  });
+  currentMapType = type;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════
+window.addEventListener('resize', function() { if (_deck) { _resizeDeck(); _syncDeckView(); renderLayers(); } });
+updateGraphStats();
+updateSrcDegSliders(false);
+updateTgtDegSliders(false);
+updateLenSliders(false);
+
+async function fetchGraphMeta() {
+  try {
+    var r = await fetch(API + '/graphs/' + GRAPH_ID + '/meta');
+    var data = await r.json();
+    graphMeta.n_grid = data.n_grid || 0;
+    graphMeta.n_mesh = data.n_mesh || 0;
+  } catch(err) {
+    console.warn('fetchGraphMeta failed:', err);
+  }
+}
+
+async function boot() {
+  _initDeck();       // layout is settled at this point — clientHeight is correct
+  _syncDeckView();   // align deck.gl view with Leaflet's current view
+  await fetchGraphMeta();
+  await fetchAndRender();
+}
+
+leafMap.whenReady(function() {
+  setTimeout(boot, 200);
+});
+</script>
+</body>
+</html>

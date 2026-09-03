@@ -1,0 +1,10 @@
+{
+  "long_name": "Total precipitation",
+  "short_name": "tp",
+  "units": "m",
+  "_ARRAY_DIMENSIONS": [
+    "time",
+    "longitude",
+    "latitude"
+  ]
+}

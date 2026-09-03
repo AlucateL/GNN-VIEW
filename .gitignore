@@ -1,0 +1,219 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.venv/
+.venv*/
+venv/
+.env
+
+# ML artifacts
+*.pt
+*.pth
+*.h5
+*.pkl
+*.onnx
+
+# cache and log files
+*.log
+*.cache
+*.tmp
+
+# OS
+.DS_Store
+
+# Un-ignore the runtime data tree. This is what re-includes the *.pt / *.pkl
+# files under backend/data that the ML-artifact rules above would otherwise
+# catch. It is a blanket negation, so every narrowing rule for backend/data
+# must come AFTER it (last matching pattern wins).
+!/backend/data/**/*
+/backend/data/ig_cache/
+# Synthetic scaling-benchmark graphs, written by scripts/benchmark_graph_scaling.py. They
+# live under data/graphs because that is the only directory load_graph resolves, but they
+# are generated fixtures, not shipped presets -- ~270 MB that the blanket un-ignore above
+# would otherwise stage on any `git add -A`. Removed by the script's `cleanup` phase.
+/backend/data/graphs/bench_scaling_*/
+
+*.hello.py
+
+# Session notes
+CHANGES.md
+USER_GUIDANCE.md
+
+# Next.js build cache
+.next/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# ignore all folders that start with .venv
+.venv*/
+
+# ignore old neural-lam
+models/neural-lam/
+
+anemoi-dataset.zarr
+
+# ERA5 pre-downloaded windows (local dev cache)
+data/era5_cache/
+
+
+# macOS Finder metadata — regenerated whenever a folder is opened
+.DS_Store
+
+# Extended ocean window — kept local, not committed and not shipped in the image.
+# analysis_ocean.zarr and ifs_forcing.zarr each ship a small window (12 state steps,
+# one IFS init) that is enough to scrub in Explain mode. Longer windows are downloaded
+# locally to recompute the timeline and would otherwise add ~1.7 GB to both the repo and
+# the image, for data the deployed pod only needs a slice of.
+#
+# Already-tracked chunks are unaffected — .gitignore does not apply to tracked files — so
+# the shipped window stays in git. Only NEW chunks are ignored.
+backend/data/ocean_datasets/analysis_ocean.zarr/state/*
+backend/data/ocean_datasets/analysis_ocean.zarr/forcing/*
+backend/data/ocean_datasets/ifs_forcing.zarr/forcing/*
+# ...but never ignore zarr metadata, without which the store will not open at all.
+!backend/data/ocean_datasets/**/.z*
+
+# Node.js dependencies and build output
+node_modules/
+.next/
+.npm/
+
+claude_md/
+
+# ============================================================================
+# anon-submission slimming — keep only what the live demo actually loads.
+#
+# Runtime data root is backend/data: docker-compose mounts ./backend/data at
+# /usr/data and sets DATA_ROOT=/usr/data. Nothing under the repo-root data/
+# tree is read by the served app.
+# ============================================================================
+
+# ── Repo-root data/ : legacy research copy of the runtime tree ──────────────
+# paper_checkpoints/, era5_datasets/, graphs/, grid/ and precomputed/ here are
+# duplicates of (or supersets of) the backend/data copies. Notebooks under it
+# are offline analysis, not part of the tool.
+/data/
+
+# ── Training checkpoints ────────────────────────────────────────────────────
+# Only the TorchScript exports are loaded at runtime:
+#   services/inference.py  PRESET_MODELS -> graphcast_scripted.pt,
+#                                           graph_fm_scripted.pt
+#   services/ocean.py                    -> seacast_scripted.pt
+#   services/seed_db.py   seeds exactly those three model rows.
+# The *.ckpt files are inputs to export_torchscript.py / the neural-lam eval
+# scripts only — offline. backend/.dockerignore already keeps them out of the
+# image; this keeps them out of the repo too.
+backend/data/paper_checkpoints/*.ckpt
+backend/data/paper_checkpoints/*.ipynb
+
+# ── Dead integrated-gradients cache ─────────────────────────────────────────
+# routes/integrated_gradients.py reads and writes /tmp/ig_cache. The .pkl files
+# under backend/data/ig_cache are legacy artifacts of the old location and are
+# never loaded. (Listed above too, but that rule sits before the blanket
+# `!/backend/data/**/*` un-ignore and so was being overridden.)
+backend/data/ig_cache/
+
+# ── Graphs: ship only the four seeded presets ───────────────────────────────
+# services/seed_db.py default_graphs -> global_multiscale, global_hierarchical,
+# ocean_hierarchical, ocean_cluster. Everything else under graphs/ is either an
+# upstream analysis graph referenced only by scripts/docs
+# (global_cluster_analysis, global_hierarchical_analysis, baltic_cluster) or a
+# hash-named user upload from a dev session. Whitelist rather than blacklist so
+# a future upload is not silently committed.
+backend/data/graphs/*
+!backend/data/graphs/global_multiscale/
+!backend/data/graphs/global_hierarchical/
+!backend/data/graphs/ocean_hierarchical/
+!backend/data/graphs/ocean_cluster/
+
+# ── Unused frontend asset ───────────────────────────────────────────────────
+# GNNExplorer.tsx fetches only coastline-50m.geojson.
+frontend/nextjs/public/geojson/coastline-10m.geojson
+
+# ── README and everything only it referenced ────────────────────────────────
+# The README is project scaffolding: a contributions table, milestone
+# sections, and SharePoint video links whose URL tokens resolve to a real
+# personal account even with the visible text scrubbed. It is dropped whole.
+# That leaves images/ and ui_mockup/ referenced by nothing — and
+# images/thumbnail_project_pitch.jpg carries institution and lab logos — so
+# they go with it. Re-add a written-from-scratch README here if one is needed.
+/README.md
+/images/
+/ui_mockup/
+
+# ── Deployment infrastructure ───────────────────────────────────────────────
+# GitLab CI pipeline and the Helm values for the on-premise GPU cluster. Both
+# are specific to one private registry and one cluster, so they are unusable
+# outside it, and their registry paths, chart helper names and custom resource
+# keys name the hosting group. docker-compose.yml is the deployment path a
+# reader can actually run and stays tracked.
+/.gitlab-ci.yml
+/helm/
+
+# ── Figure-2 defect graphs ─────────────────────────────────────────────────────
+# notebooks/figure2_builder.py resolves a bare graph name against
+# GRAPH_SEARCH_DIRS, and the two it needs -- prod_cluster_default and
+# prod_cluster_noconnect -- are the only ones of the 33 built by
+# scripts/make_defect_graphs.py that the figure actually reads. They live
+# here rather than under the ignored /data/ tree so the figure is
+# reproducible from a clone. The *.pt rule above would otherwise catch
+# them, hence the negation.
+!/notebooks/defect_graphs/**/*
+
+# ── Upstream cluster job scripts ────────────────────────────────────────────
+# SLURM submission scripts from the vendored baltic-sea-forecasting tree. They
+# hard-code the upstream authors' HPC allocation, account name and contact
+# address, and target a cluster no reader has access to, so they are dead
+# weight that carries third-party personal data. The Python they submit is
+# still present; only the eight job files that named someone are dropped.
+vendor/baltic-sea-forecasting/eval_scripts/graph_fm.sh
+vendor/baltic-sea-forecasting/graph_scripts/create_graph.sh
+vendor/baltic-sea-forecasting/graph_scripts/create_graph_pretraining.sh
+vendor/baltic-sea-forecasting/training_scripts/debug.sh
+vendor/baltic-sea-forecasting/training_scripts/train.sh
+vendor/baltic-sea-forecasting/training_scripts/graph_SI/graph_SI_1.sh
+vendor/baltic-sea-forecasting/training_scripts/graph_edm/graph_edm_1.sh
+vendor/baltic-sea-forecasting/training_scripts/graph_flow/graph_flow_1.sh
+
+# ── ERA5 boot window ────────────────────────────────────────────────────────
+# services/inference.py FIELDS_ZARR_PATH now points at
+# small_2020-08-27T00:00_for_10_steps.zarr (66 MB, 9 steps). aug2020.zarr is
+# the full 124-step month (903 MB); era5_window_manager streams any month from
+# GCS into /tmp on demand, so the timeline bands still work without it.
+backend/data/era5_datasets/aug2020.zarr/
+
+# ── Oversized TorchScript models ────────────────────────────────────────────
+# GitHub hard-rejects blobs over 100 MB and Git LFS is unavailable through the
+# anonymisation proxy, so these two ship as xz-compressed (and, where still
+# over the limit, split) siblings and are rebuilt by scripts/restore_models.py.
+# graphcast_scripted.pt is 25 MB and stays as-is.
+backend/data/paper_checkpoints/seacast_scripted.pt
+backend/data/paper_checkpoints/graph_fm_scripted.pt
+
+# ── Internal working documents ──────────────────────────────────────────────
+# Feature design specs, review handoffs and agent tooling config. These are
+# working artifacts of development, not part of the submitted tool, and they
+# are the main place stray identifying detail accumulates.
+/ANEMOI_INTEGRATION.md
+/BBOX_TORCH.md
+/CLAUDE.md
+/EXPLAIN_MODE.md
+/EXPLORE_HIERARCHY.md
+/FRONTEND_IMPLEMENTATION_STEPS.md
+/FRONTEND_REFINEMENTS.md
+/GCS_TIMELINE_FETCH.md
+/IG_STEPS.md
+/MAP_SPLIT_DESIGN.md
+/PERNODE_BASELINE.md
+/VENDORED_BALTIC_SEA_FORECASTING.md
+/WORKSHOP_REVIEW_ASSESSMENT.md
+/WORKSHOP_REVIEW_HANDOFF.md
+/.impeccable.md
+/.claude/

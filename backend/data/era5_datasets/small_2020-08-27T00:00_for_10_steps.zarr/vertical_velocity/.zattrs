@@ -1,0 +1,12 @@
+{
+  "long_name": "Vertical velocity",
+  "short_name": "w",
+  "standard_name": "lagrangian_tendency_of_air_pressure",
+  "units": "Pa s**-1",
+  "_ARRAY_DIMENSIONS": [
+    "time",
+    "level",
+    "longitude",
+    "latitude"
+  ]
+}

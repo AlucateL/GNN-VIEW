@@ -1,0 +1,15 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "state_feature",
+        "time",
+        "grid_index"
+    ],
+    "coordinates": "latitude longitude state_feature_long_name state_feature_source_dataset state_feature_units",
+    "long_name": "Sea surface height",
+    "standard_name": "sea_surface_height_above_geoid",
+    "unit_long": "Meters",
+    "units": "m",
+    "valid_max": 5.0,
+    "valid_min": -5.0,
+    "variables_mapping_dim": "state_feature"
+}

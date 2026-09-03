@@ -1,0 +1,8 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "static_feature",
+        "grid_index"
+    ],
+    "coordinates": "latitude longitude static_feature_long_name static_feature_source_dataset static_feature_units",
+    "variables_mapping_dim": "static_feature"
+}
